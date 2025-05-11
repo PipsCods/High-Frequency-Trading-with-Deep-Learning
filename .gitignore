@@ -1,2 +1,3 @@
 # Ingnore the data folder
 data/
+venv/
