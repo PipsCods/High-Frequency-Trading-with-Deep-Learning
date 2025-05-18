@@ -86,7 +86,10 @@ def main():
             rmt, rmt_cum, rmt_sr, ls, ls_cum, ls_sr = evaluate_strategy_from_predictions(df_alpha)
             r2 = r2_score(df_alpha['y_true'], df_alpha['y_pred'])
 
-            print(f"[α={alpha}] Market Timing Sharpe: {rmt_sr:.4f}, Long-Short Sharpe: {ls_sr:.4f}, R²: {r2:.4f}")
+            if alpha == 0:
+                print(f"OLS - Market Timing Sharpe: {rmt_sr:.4f}, Long-Short Sharpe: {ls_sr:.4f}, R²: {r2:.4f}")
+            else:
+                print(f"[α={alpha}] Market Timing Sharpe: {rmt_sr:.4f}, Long-Short Sharpe: {ls_sr:.4f}, R²: {r2:.4f}")
 
             results_per_alpha[alpha] = {
                 'rmt_cum': rmt_cum.sort_index(),
@@ -95,7 +98,7 @@ def main():
 
         if args.plot and results_per_alpha:
             plt.figure(figsize=(12, 6))
-            plt.plot(bh_cum, label="Buy & Hold Benchmark", linestyle="--")
+            plt.plot(bh_cum, label="Buy & Hold strategy", linestyle="--")
 
             for alpha, result in results_per_alpha.items():
                 plt.plot(result['rmt_cum'], label=f"Market Timing (α={alpha})")
@@ -151,7 +154,7 @@ def evaluate_strategy_from_predictions(results: pd.DataFrame):
 
     # Extract the returns of each of the strategies
     returns_market_timing = results.groupby('timestamp')['market_timing_returns'].mean()
-    returns_long_short = compute_long_short(results)
+    returns_long_short = compute_dollar_neutral_long_short(results)
 
     # Cumulative return
     returns_market_timing_cum = returns_market_timing.cumsum()
@@ -166,27 +169,45 @@ def evaluate_strategy_from_predictions(results: pd.DataFrame):
 
     return returns_market_timing, returns_market_timing_cum,sr_mt, returns_long_short, returns_long_short_cum, sr_ls
 
-def compute_long_short(df):
+def compute_dollar_neutral_long_short(df, k=5):
     """
-    Long assets with positive predicted return,
-    short assets with negative predicted return,
-    compute average return difference per timestamp.
+    Compute dollar-neutral long-short strategy.
+    For each timestamp:
+    - Long top-k predicted assets
+    - Short bottom-k predicted assets
+    - Use price to allocate equal capital to both sides
     """
-    long_short_returns = []
+    results = []
 
     for ts, group in df.groupby('timestamp'):
-        long = group[group['y_pred'] > 0]
-        short = group[group['y_pred'] < 0]
+        group = group.dropna(subset=['y_pred', 'y_true', 'price'])
 
-        if len(long) == 0 or len(short) == 0:
+        if len(group) < 2 * k:
             continue
 
-        long_ret = long['y_true'].mean()
-        short_ret = short['y_true'].mean()
+        # Sort predictions
+        sorted_group = group.sort_values(by='y_pred', ascending=False)
 
-        long_short_returns.append({
+        long = sorted_group.head(k).copy()
+        short = sorted_group.tail(k).copy()
+
+        # Calculate total price (capital) needed for long and short legs
+        total_long_price = long['price'].sum()
+        total_short_price = short['price'].sum()
+
+        # Dollar-neutral weights (half capital to each side)
+        long['weight'] = 0.5 * (long['price'] / total_long_price)
+        short['weight'] = 0.5 * (short['price'] / total_short_price)
+
+        # Calculate weighted returns
+        long_ret = (long['y_true'] * long['weight']).sum()
+        short_ret = (short['y_true'] * short['weight']).sum()
+
+        results.append({
             'timestamp': ts,
-            'long_short_returns': long_ret - short_ret
+            'long_short_returns': long_ret - short_ret,
+            'long_return': long_ret,
+            'short_return': short_ret
         })
 
-    return pd.DataFrame(long_short_returns).set_index('timestamp')
+    return pd.DataFrame(results).set_index('timestamp')
