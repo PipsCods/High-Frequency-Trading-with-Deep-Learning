@@ -131,6 +131,7 @@ class HFTModel(nn.Module):
 def train_epoch(model, loader, optimizer, loss_fn, device):
     model.train()
     total_loss = 0.0
+    a = []
     for feat, tid, sid, trg in tqdm(loader, desc= "Training", leave = False):
         feat = feat.to(device)
         tid = tid.to(device)
@@ -144,16 +145,17 @@ def train_epoch(model, loader, optimizer, loss_fn, device):
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm= 1.0)
         optimizer.step()
-
+        a.append(loss.item())
         total_loss += loss.item() * feat.size(0)
 
-    return total_loss/len(loader.dataset)
+    return np.mean(a)#total_loss/len(loader.dataset)
 
 
 @torch.no_grad()
 def eval(model, loader, loss_fn, device): 
     model.eval()
     total_loss = 0.0
+    a = []
     for feat, tid, sid, trg in tqdm(loader, desc= "Evaluating", leave = False):
         feat = feat.to(device)
         tid = tid.to(device)
@@ -162,15 +164,27 @@ def eval(model, loader, loss_fn, device):
 
         preds = model(feat, tid, sid)
         loss = loss_fn(preds, trg)
+        a.append(loss.item())
         total_loss += loss.item() * feat.size(0)
 
-    return total_loss / len(loader.dataset) 
+    return np.mean(a)#total_loss / len(loader.dataset) 
     
+# def Standardization(df_train: pd.DataFrame, df_test : pd.DataFrame, ret_col : str):
+#     symbol_stat = df_train.groupby("SYMBOL")[ret_col].agg(
+#         mu = 'mean',
+#         sigma = 'std'
+#     ).reset_index()
 
+#     df_train = df_train.merge(symbol_stat, on = "SYMBOL", how = "left")
+#     df_test = df_test.merge(symbol_stat, on = "SYMBOL", how= "left")
 
+#     df_train["Scaled_RET"] = (df_train[ret_col] - df_train['mu']) / df_train["sigma"]
+#     df_test["Scaled_RET"] = (df_test[ret_col] - df_test['mu']) / df_test["sigma"]
 
-def main():
-#Config
+#     return df_train, df_test
+
+if __name__ == "__main__": 
+    #Config
     seq_len = 30   #5 hours of data for prediction
     batch_size = 512
     num_epochs = 20
@@ -224,6 +238,7 @@ def main():
     best_val_loss = float('inf')
     train_losses = []
     test_losses = []
+    c = 0
     for epoch in range(1, num_epochs +1):
         start = time.time()
         train_loss = train_epoch(model=model, loader= train_loader, optimizer= optimizer, loss_fn= loss_fn, device= device)
@@ -233,19 +248,10 @@ def main():
         train_losses.append(train_loss)
         test_losses.append(test_loss)
         print(f"Epoch {epoch:02d} — Train Loss: {train_loss:.6f}, Test Loss: {test_loss:.6f}, Time: {end - start:.2f}s")
-        if test_loss < best_val_loss:
+        
+        if (test_loss < best_val_loss) & (c > 10):
             best_val_loss = test_loss
             torch.save(model.state_dict(), "../models/best_model.pth")
-
+        c += 1 #we only start counting and saving models from the 10 epoch forward
     print(f"Best Test Loss: {best_val_loss:.6f}")
-
-
-
-
-
-
-
-
-if __name__ == "__main__": 
-    main()
     
