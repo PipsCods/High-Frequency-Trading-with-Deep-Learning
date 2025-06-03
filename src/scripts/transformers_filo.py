@@ -9,9 +9,6 @@ from sklearn.preprocessing import StandardScaler
 
 
 
-
-
-
 class HFTDataset(Dataset):
     def __init__(self, df: pd.DataFrame, seq_len: int, symbol2id : dict, features: str):
         self.seq_len = seq_len
@@ -26,6 +23,7 @@ class HFTDataset(Dataset):
 
         for sym, group in df.groupby("SYMBOL"):
             group = group.reset_index(drop=True)
+            returns = group[features].values
             returns = group[features].values
             time_id = group["time_id"].values
 
@@ -187,7 +185,7 @@ if __name__ == "__main__":
     #Config
     seq_len = 30   #5 hours of data for prediction
     batch_size = 512
-    num_epochs = 20
+    num_epochs = 200
     learning_rate = 3e-4
     weight_decay = 1e-2
 
@@ -209,8 +207,8 @@ if __name__ == "__main__":
     df_test = df_cn[df_cn["DATE"] >= '2021-12-27 00:00:00'].copy()
 
     scaler = StandardScaler()
-    df_train["Scaled_RET"] = scaler.fit_transform(df_train[["RETURN_NoOVERNIGHT"]])
-    df_test["Scaled_RET"] = scaler.transform(df_test[["RETURN_NoOVERNIGHT"]])
+    df_train["Scaled_RET"] = scaler.fit_transform(df_train[["RETURN"]]) #RETURN_NoOVERNIGHT
+    df_test["Scaled_RET"] = scaler.transform(df_test[["RETURN"]]) # RETURN_NoOVERNIGHT
 
     unique_sym = df_train["SYMBOL"].unique()
     symbol2id = {sym : i for i, sym in enumerate(unique_sym)}
@@ -239,6 +237,7 @@ if __name__ == "__main__":
     train_losses = []
     test_losses = []
     c = 0
+
     for epoch in range(1, num_epochs +1):
         start = time.time()
         train_loss = train_epoch(model=model, loader= train_loader, optimizer= optimizer, loss_fn= loss_fn, device= device)
