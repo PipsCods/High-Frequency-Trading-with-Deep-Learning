@@ -113,3 +113,34 @@ def run_ridge_for_symbol(symbol, group, features, train_window, shrinkage_list:l
 
     return results
 
+
+def augment_features(df: pd.DataFrame, symbol_col: str, return_col: str, time_col: str) -> pd.DataFrame:
+
+
+    df = df.copy()
+    df[time_col] = pd.to_datetime(df[time_col])
+    df = df.sort_values(by=[symbol_col, time_col])
+
+    #window size for 1 hour (6 * 10min)
+    window_size = 6
+
+    
+    grouped = df.groupby(symbol_col, group_keys=False)
+
+    # Moving average and std (using only current and past data)
+    df['ma_1h'] = grouped[return_col].transform(lambda x: x.rolling(window=window_size, min_periods=1).mean())
+    df['std_1h'] = grouped[return_col].transform(lambda x: x.rolling(window=window_size, min_periods=1).std())
+
+    # Non-linear transformations of returns
+    df['return_cos'] = np.cos(df[return_col])
+    df['return_sin'] = np.sin(df[return_col])
+    df['return_tanh'] = np.tanh(df[return_col])
+    df['return_exp'] = np.exp(df[return_col].clip(upper=10))  # avoid overflow
+    df['return_sign'] = np.sign(df[return_col])
+    df['return_square'] = df[return_col] ** 2
+    df['return_log1p'] = np.sign(df[return_col]) * np.log1p(np.abs(df[return_col]))  # preserve sign
+    df['return_relu'] = np.maximum(0, df[return_col])
+
+    return df
+
+
