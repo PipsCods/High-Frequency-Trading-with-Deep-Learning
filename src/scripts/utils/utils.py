@@ -19,6 +19,55 @@ def timestamp_extract(df):
 import numpy as np
 import torch
 
+def df_to_transformer_input_fast(
+    df: pd.DataFrame,
+    seq_len: int
+):
+    """
+    Vectorised version of df_to_transformer_input.
+    Returns:
+        X : (batch, seq_len, num_symbols, num_features)  torch.float32
+        y : (batch, num_symbols)                         torch.float32
+    """
+
+
+
+    cube_df = (
+        df
+        .set_index('symbol', append= True)
+        .unstack('symbol')
+        .sort_index(axis=1, level=0)        # symbols outer-level in α order
+    )
+
+
+    num_times     = cube_df.shape[0]
+    symbols_lvl   = cube_df.columns.levels[1]      # first level  → symbols
+    features_lvl  = cube_df.columns.levels[0]      # second level → features
+    num_symbols   = len(symbols_lvl)
+    num_features  = len(features_lvl)
+
+
+    cube = cube_df.to_numpy(dtype=np.float32).reshape(
+        num_times, num_symbols, num_features
+    )
+
+    X_windows = np.lib.stride_tricks.sliding_window_view(
+        cube, window_shape=seq_len, axis=0
+    )[:-1]                               # (T-seq_len, L, N, F)
+
+ 
+    y_vec = cube[seq_len:, :, -1]        # (T-seq_len, N)
+
+
+    good = (~np.isnan(X_windows).any(axis=(1, 2, 3))) & (~np.isnan(y_vec).any(axis=1))
+
+    X = torch.from_numpy(X_windows[good]).contiguous()    # (B, L, N, F)
+    X = np.transpose(X, (0, 3, 1, 2))
+
+    y = torch.from_numpy(y_vec[good]).contiguous()        # (B, N)
+
+    return X, y
+
 def df_to_transformer_input(df, basic_cat_features, cat_features, cont_features, seq_len):
     # Reset the index
     tmp = df.copy()
