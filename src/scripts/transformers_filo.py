@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import time
 from sklearn.preprocessing import StandardScaler
+from transformer.MSSRLoss import MSSRLoss
 
 
 
@@ -23,7 +24,6 @@ class HFTDataset(Dataset):
 
         for sym, group in df.groupby("SYMBOL"):
             group = group.reset_index(drop=True)
-            returns = group[features].values
             returns = group[features].values
             time_id = group["time_id"].values
 
@@ -44,7 +44,7 @@ class HFTDataset(Dataset):
         features = torch.tensor(feat, dtype= torch.float32).unsqueeze(-1) #(seq_len, 1)
         time_ids = torch.tensor(ti, dtype= torch.long) #(seq_len,)
         sym_ids = torch.tensor(sym_id, dtype= torch.long)
-        targets = torch.tensor(target, dtype= torch.float32)
+        targets = torch.tensor(target, dtype= torch.float32).unsqueeze(-1)
         
         return features, time_ids, sym_ids, targets
         
@@ -121,7 +121,7 @@ class HFTModel(nn.Module):
 
         attn_out, _ = self.attn(x ,x ,x )
         pooled = attn_out.mean(dim = 1)
-        preds = self.head(pooled).squeeze(-1)
+        preds = self.head(pooled)
 
         return preds
     
@@ -207,8 +207,8 @@ if __name__ == "__main__":
     df_test = df_cn[df_cn["DATE"] >= '2021-12-27 00:00:00'].copy()
 
     scaler = StandardScaler()
-    df_train["Scaled_RET"] = scaler.fit_transform(df_train[["RETURN"]]) #RETURN_NoOVERNIGHT
-    df_test["Scaled_RET"] = scaler.transform(df_test[["RETURN"]]) # RETURN_NoOVERNIGHT
+    df_train["Scaled_RET"] = scaler.fit_transform(df_train[["RETURN_NoOVERNIGHT"]]) #RETURN_NoOVERNIGHT
+    df_test["Scaled_RET"] = scaler.transform(df_test[["RETURN_NoOVERNIGHT"]]) # RETURN_NoOVERNIGHT
 
     unique_sym = df_train["SYMBOL"].unique()
     symbol2id = {sym : i for i, sym in enumerate(unique_sym)}
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         max_lr= learning_rate,
         total_steps= num_epochs * len(train_loader)
     )
-    loss_fn = nn.MSELoss()
+    loss_fn = MSSRLoss(leverage_penalty= 1e-4)
 
     print("Start Training")
     best_val_loss = float('inf')

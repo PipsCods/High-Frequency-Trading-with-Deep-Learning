@@ -29,10 +29,11 @@ if __name__ == '__main__':
     to_drop = data[data.isnull().any(axis=1)]['SYMBOL'].unique()
     df_cleaned = data[~data['SYMBOL'].isin(to_drop)]
     data['datetime'] = pd.to_datetime(data['DATE'].astype(str) + ' ' + data['TIME'].astype(str))
-    data = data.drop(columns=['TIME', 'DATE', 'RETURN'])
+    data = data.drop(columns=['TIME', 'DATE'])
     timestamp_col = 'datetime'
     symbol_col = 'SYMBOL'
     mid_price_col = 'MID_OPEN'
+    return_col = "RETURN_SiOVERNIGHT"
     date_split = '2021-12-05'
 
     data = data[data[timestamp_col] <= '2021-12-10']
@@ -48,6 +49,7 @@ if __name__ == '__main__':
     timestamp_col = 'Timestamp'
     symbol_col = 'Stock_Symbol'
     mid_price_col = 'Mid_Price'
+    return_col = "RETURN_SiOVERNIGHT"
     date_split = '2023-01-02'"""
 
     # We create a function that prepares the data for the model. This function will:
@@ -60,16 +62,13 @@ if __name__ == '__main__':
     #    continuous_features (note that returns are at the end)
     #  - Return the prepared data and the positions of the basic_cat_features, categorical_features,
     #    and continuous_features in the data also it returns the lists of the different types of features.
+    breakpoint()
 
     data, basic_cat_features, cat_features, cont_features, cat_feat_positions, cont_feat_positions = (
-        prepare_hf_data(data, timestamp_col, symbol_col, mid_price_col)
+        prepare_hf_data(data, name_of_timestamp_column= timestamp_col, name_of_symbol_column=symbol_col, name_of_return_column= return_col)
     )
 
-    # Normalize the data
-    print("Normalizing the data...")
-    data['return_raw'] = data['return']
-    scaler = StandardScaler()
-    data[cont_features] = scaler.fit_transform(data[cont_features])
+    breakpoint()
 
 # ===================================================================================================================
 
@@ -89,11 +88,12 @@ if __name__ == '__main__':
 
     symbol_reverse = {idx: val for val, idx in vocab_maps['symbol'].items()}
 
+    breakpoint()
     # =================
     # Do the splitting --> We choose a date of split, the train will be done on one side and the test on the other side
     # =================
     print("Splitting the data...")
-    train_df, test_df = split_and_shift_data(data, date_split=date_split)
+    train_df, test_df = split_and_shift_data(data, date_split=date_split, target_col= "return")
 
     # =================
     # Parameters for the dataloader
@@ -101,9 +101,19 @@ if __name__ == '__main__':
     LAGS = 6  # 1HOUR
     BATCH_SIZE = 4
 
+    breakpoint()
+    # Normalize the data
+    print("Normalizing the data...")
+    #data['return_raw'] = data['return']
+    scaler = StandardScaler()
+    train_df[cont_features] = scaler.fit_transform(train_df[cont_features])
+    test_df[cont_features] = scaler.transform(test_df[cont_features])
+
+    #data[cont_features] = scaler.fit_transform(data[cont_features])
     # =================
     # Building the input dictionary
     # =================
+    breakpoint()
 
     print("Building training signals and targets...")
     train_signals, train_targets = df_to_transformer_input(
@@ -123,6 +133,7 @@ if __name__ == '__main__':
         seq_len=LAGS
     )
 
+    breakpoint()
     # =================
     # Building the dataloaders
     # =================
@@ -137,6 +148,7 @@ if __name__ == '__main__':
     sanity_check(train_loader)
     breakpoint()"""
 
+    breakpoint()
 # ===================================================================================================================
 
 # =================

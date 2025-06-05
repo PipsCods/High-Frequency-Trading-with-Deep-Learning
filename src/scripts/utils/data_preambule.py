@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def filter_stocks_with_full_coverage(df, timestamp_col='timestamp', symbol_col='symbol'):
     """
@@ -29,7 +30,37 @@ def filter_stocks_with_full_coverage(df, timestamp_col='timestamp', symbol_col='
 
     return filtered_df
 
-def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, name_of_mid_price_column):
+
+def augment_features(df: pd.DataFrame, symbol_col: str, return_col: str) -> pd.DataFrame:
+
+
+    # df = df.copy()
+    # df[time_col] = pd.to_datetime(df[time_col])
+    # df = df.sort_values(by=[symbol_col, time_col])
+
+    #window size for 1 hour (6 * 10min)
+    window_size = 6
+
+    
+    grouped = df.groupby(symbol_col, group_keys=False)
+
+    # Moving average and std (using only current and past data)
+    df['ma_1h'] = grouped[return_col].transform(lambda x: x.rolling(window=window_size, min_periods=1).mean())
+    df['std_1h'] = grouped[return_col].transform(lambda x: x.rolling(window=window_size, min_periods=1).std())
+
+    # Non-linear transformations of returns
+    df['return_cos'] = np.cos(df[return_col])
+    df['return_sin'] = np.sin(df[return_col])
+    df['return_tanh'] = np.tanh(df[return_col])
+    df['return_exp'] = np.exp(df[return_col].clip(upper=10))  # avoid overflow
+    df['return_sign'] = np.sign(df[return_col])
+    df['return_square'] = df[return_col] ** 2
+    df['return_log1p'] = np.sign(df[return_col]) * np.log1p(np.abs(df[return_col]))  # preserve sign
+    df['return_relu'] = np.maximum(0, df[return_col])
+
+    return df
+
+def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, name_of_return_column):
     """
     Processes a high-frequency financial dataset to prepare it for training and testing.
 
@@ -52,7 +83,7 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, nam
 
     # Verify that the columns exist in the DataFrame
     if not all(col in raw_df.columns for col in
-               [name_of_timestamp_column, name_of_symbol_column, name_of_mid_price_column]):
+               [name_of_timestamp_column, name_of_symbol_column, name_of_return_column]):
         raise ValueError("The specified columns do not exist in the DataFrame.")
 
     # Convert and set timestamp
@@ -64,8 +95,8 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, nam
     if 'symbol' not in df.columns:
         df.rename(columns={name_of_symbol_column: 'symbol'}, inplace=True)
 
-    if 'mid_price' not in df.columns:
-        df.rename(columns={name_of_mid_price_column: 'mid_price'}, inplace=True)
+    # if 'mid_price' not in df.columns:
+    #     df.rename(columns={name_of_mid_price_column: 'mid_price'}, inplace=True)
 
     # Extract time-based features
     df['day'] = df.index.day
@@ -73,21 +104,24 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, nam
     df['minute'] = df.index.minute
     df['day_name'] = df.index.day_name()
 
-    # Compute return (by symbol)
-    df['return'] = df.groupby('symbol')['mid_price'].pct_change()
+    # # Compute return (by symbol)
+    df['return'] = df[name_of_return_column]
+    df.drop(columns= [name_of_return_column], inplace = True )
 
     # Fill missing values from return computation
     df.fillna(0, inplace=True)
 
     # Sort chronologically by symbol
     df = df.sort_values(by=['symbol', df.index.name])
+    
+    df= augment_features(df, symbol_col= "symbol", return_col= "return")
 
     # Categorical features (known structure)
     basic_cat_features = ['symbol', 'day', 'day_name', 'hour', 'minute']
     cat_features = [col for col in df.select_dtypes(include=['object']).columns if col not in basic_cat_features and col != 'timestamp']
 
     # Detect continuous features automatically (besides return)
-    base = ['mid_price','return']
+    base = ['return']
     cont_features = [col for col in df.select_dtypes(include=['float64', 'float32', 'int']).columns
                  if col not in base + basic_cat_features]
     df[cont_features] = df[cont_features].astype('float32') # transform to float32 to save memory
@@ -105,3 +139,6 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, nam
     cont_feat_positions = [df.columns.get_loc(col) for col in cont_features]
 
     return df, basic_cat_features, cat_features, cont_features, cat_feat_positions, cont_feat_positions
+
+
+
