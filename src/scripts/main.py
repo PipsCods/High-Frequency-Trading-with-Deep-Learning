@@ -106,10 +106,13 @@ def split_and_normalise(
     """Train/val split by `date_split` and z‑score continuous features."""
     train_df, test_df = split_and_shift_data(data, date_split=date_split, target_col=target_col)
 
+    train_mean = train_df["return"].mean()
+    train_std = train_df["return"].std()
+
     scaler = StandardScaler()
     train_df[cont_features] = scaler.fit_transform(train_df[cont_features])
     test_df[cont_features] = scaler.transform(test_df[cont_features])
-    return train_df, test_df, scaler
+    return train_df, test_df, scaler, train_mean, train_std
 
 
 # =============================================================================
@@ -258,6 +261,46 @@ def plot_performance(preds: torch.Tensor, targets: torch.Tensor):
     plt.legend(); plt.grid(True); plt.show()
 
 
+def plot_training_history(history: dict[str, list[float]]) -> None:
+    """
+    Parameters
+    ----------
+    history : dict
+        Expected keys:
+            - "train_loss"   : list[float]
+            - "test_loss"    : list[float]
+            - "sign_accuracy": list[float]   (or "sign_acc", see below)
+
+    Notes
+    -----
+    * If you used a different key for sign accuracy (e.g. "sign_acc"),
+      just replace the lookup line.
+    * Shows three lines on the same axis with a legend.
+    """
+    # ------- defensive look-ups -----------------------------------------
+    train_loss   = history.get("train_loss", [])
+    test_loss    = history.get("test_loss", [])
+    sign_acc_key = "sign_accuracy" if "sign_accuracy" in history else "sign_acc"
+    sign_acc     = history.get(sign_acc_key, [])
+
+    n_epochs = max(len(train_loss), len(test_loss), len(sign_acc))
+    epochs   = range(1, n_epochs + 1)
+
+    # ------- plot -------------------------------------------------------
+    plt.figure(figsize=(8, 4))
+    if train_loss:
+        plt.plot(epochs, train_loss,  label="Train loss")
+    if test_loss:
+        plt.plot(epochs, test_loss,   label="Test loss")
+    if sign_acc:
+        plt.plot(epochs, sign_acc,    label="Sign-accuracy")
+    plt.xlabel("Epoch")
+    plt.title("Training history")
+    plt.legend()
+    plt.grid(True, alpha=.3)
+    plt.tight_layout()
+    plt.show()
+
 # =============================================================================
 # 8. MAIN DRIVER
 # =============================================================================
@@ -276,7 +319,7 @@ def main():
     RETURN_COL = "RETURN_SiOVERNIGHT"
     LAGS = 6
     BATCH_SIZE = 16
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 5
 
     # ------------------------------------------------------------------
     # LOAD & CLEAN
@@ -307,8 +350,11 @@ def main():
     # ------------------------------------------------------------------
     # SPLIT + NORMALISE
     # ------------------------------------------------------------------
-    train_df, test_df, _ = split_and_normalise(data, DATE_SPLIT, cont_features)
 
+
+    train_df, test_df, _ , mean, std= split_and_normalise(data, DATE_SPLIT, cont_features)
+
+    breakpoint
     # ------------------------------------------------------------------
     # DATALOADERS
     # ------------------------------------------------------------------
@@ -355,13 +401,28 @@ def main():
         pipeline, train_loader, test_loader, device, NUM_EPOCHS
     )
 
-    torch.save(best_state, "transformer_model_best.pth")
+    #torch.save(best_state, "transformer_model_best.pth")
     print(f"Best Test Loss: {best_loss:.4f}")
+
+    preds, targets = pipeline.best_predictions.cpu().numpy(), pipeline.best_targets.cpu().numpy()
+
+    history_df = pd.DataFrame(history)
+
+    pred_df = pd.DataFrame(preds, columns = vocab_maps['symbol'])
+    target_df = pd.DataFrame(targets, columns = vocab_maps['symbol'])
+
+    breakpoint()
+
+    history_df.to_pickle("results/model/losses.pickle")
+    pred_df.to_pickle("results/model/predictions.pickle")
+    target_df.to_pickle("results/model/targets.pickle")
 
     # ------------------------------------------------------------------
     # VISUALISE
     # ------------------------------------------------------------------
-    plot_performance(pipeline.best_predictions, pipeline.best_targets)
+    #plot_performance(pipeline.best_predictions, pipeline.best_targets)
+
+
 
 
 
