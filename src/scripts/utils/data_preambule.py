@@ -104,7 +104,7 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, nam
     df['minute'] = df.index.minute
     df['day_name'] = df.index.day_name()
 
-    # # Compute return (by symbol)
+    # Compute return (by symbol)
     df['return'] = df[name_of_return_column]
     df.drop(columns= [name_of_return_column], inplace = True )
 

@@ -16,9 +16,6 @@ def timestamp_extract(df):
 
     return df
 
-import numpy as np
-import torch
-
 def df_to_transformer_input_fast(
     df: pd.DataFrame,
     seq_len: int
@@ -30,8 +27,6 @@ def df_to_transformer_input_fast(
         y : (batch, num_symbols)                         torch.float32
     """
 
-
-
     cube_df = (
         df
         .set_index('symbol', append= True)
@@ -39,13 +34,11 @@ def df_to_transformer_input_fast(
         .sort_index(axis=1, level=0)        # symbols outer-level in α order
     )
 
-
     num_times     = cube_df.shape[0]
     symbols_lvl   = cube_df.columns.levels[1]      # first level  → symbols
     features_lvl  = cube_df.columns.levels[0]      # second level → features
     num_symbols   = len(symbols_lvl)
     num_features  = len(features_lvl)
-
 
     cube = cube_df.to_numpy(dtype=np.float32).reshape(
         num_times, num_symbols, num_features
@@ -55,9 +48,9 @@ def df_to_transformer_input_fast(
         cube, window_shape=seq_len, axis=0
     )[:-1]                               # (T-seq_len, L, N, F)
 
- 
-    y_vec = cube[seq_len:, :, -1]        # (T-seq_len, N)
-
+    target_df = cube_df['target_return']
+    target_df = target_df[symbols_lvl]
+    y_vec = target_df.to_numpy(dtype=np.float32)[seq_len:]        # (T-seq_len, N)
 
     good = (~np.isnan(X_windows).any(axis=(1, 2, 3))) & (~np.isnan(y_vec).any(axis=1))
 
@@ -66,6 +59,7 @@ def df_to_transformer_input_fast(
 
     y = torch.from_numpy(y_vec[good]).contiguous()        # (B, N)
 
+    return X, y
     return X, y
 
 def df_to_transformer_input(df, basic_cat_features, cat_features, cont_features, seq_len):

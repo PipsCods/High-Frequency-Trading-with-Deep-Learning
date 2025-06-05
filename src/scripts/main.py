@@ -16,7 +16,7 @@ from model.model_init import ModelPipeline
 
 
 # =============================================================================
-# 1. DATA LOADING & CLEANING
+# 1. DATA LOADING & CLEANING
 # =============================================================================
 
 def load_raw_data(path: str) -> pd.DataFrame:
@@ -42,7 +42,7 @@ def restrict_time_window(df: pd.DataFrame, end_date: str) -> pd.DataFrame:
 
 
 # =============================================================================
-# 2. FEATURE ENGINEERING
+# 2.FEATURE ENGINEERING
 # =============================================================================
 
 def build_feature_frames(
@@ -84,7 +84,7 @@ def build_feature_frames(
 
 
 # =============================================================================
-# 3. ENCODING & SPLITTING
+# 3. ENCODING & SPLITTING
 # =============================================================================
 
 def encode_categoricals(data: pd.DataFrame, cat_cols: list[str]):
@@ -106,17 +106,20 @@ def split_and_normalise(
     """Train/val split by `date_split` and z‑score continuous features."""
     train_df, test_df = split_and_shift_data(data, date_split=date_split, target_col=target_col)
 
+
     train_mean = train_df["return"].mean()
     train_std = train_df["return"].std()
 
     scaler = StandardScaler()
     train_df[cont_features] = scaler.fit_transform(train_df[cont_features])
+
     test_df[cont_features] = scaler.transform(test_df[cont_features])
+
     return train_df, test_df, scaler, train_mean, train_std
 
 
 # =============================================================================
-# 4. DATALOADERS
+# 4.DATALOADERS
 # =============================================================================
 #486, 3846, 20, 6
 #486, 3846
@@ -165,7 +168,7 @@ def build_dataloaders(
 
 
 # =============================================================================
-# 5. MODEL CONFIGURATION
+# 5.MODEL CONFIGURATION
 # =============================================================================
 
 def build_config(
@@ -200,7 +203,7 @@ def build_config(
 
 
 # =============================================================================
-# 6. TRAIN / EVAL LOOP
+# 6.TRAIN / EVAL LOOP
 # =============================================================================
 
 def train_and_evaluate(
@@ -240,7 +243,7 @@ def train_and_evaluate(
 
 
 # =============================================================================
-# 7. VISUALISATION
+# 7.VISUALISATION
 # =============================================================================
 
 def plot_performance(preds: torch.Tensor, targets: torch.Tensor):
@@ -302,7 +305,7 @@ def plot_training_history(history: dict[str, list[float]]) -> None:
     plt.show()
 
 # =============================================================================
-# 8. MAIN DRIVER
+# 8.MAIN DRIVER
 # =============================================================================
 
 def main():
@@ -325,7 +328,9 @@ def main():
     # LOAD & CLEAN
     # ------------------------------------------------------------------
     df = load_raw_data(RAW_PATH)
+
     df = enrich_datetime(df)
+
     #df = restrict_time_window(df, END_DATE)
     df = filter_stocks_with_full_coverage(df, TIMESTAMP_COL, SYMBOL_COL)
 
@@ -347,14 +352,14 @@ def main():
     data, vocab_maps = encode_categoricals(data, cat_cols=cat_features + basic_cat_features)
     symbol_reverse = {idx: val for val, idx in vocab_maps["symbol"].items()}
 
+
     # ------------------------------------------------------------------
     # SPLIT + NORMALISE
     # ------------------------------------------------------------------
 
-
     train_df, test_df, _ , mean, std= split_and_normalise(data, DATE_SPLIT, cont_features)
 
-    breakpoint
+
     # ------------------------------------------------------------------
     # DATALOADERS
     # ------------------------------------------------------------------
