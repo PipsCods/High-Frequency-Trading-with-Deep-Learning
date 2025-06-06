@@ -215,11 +215,3 @@ if __name__ == "__main__":
     # 3. Lasso regression
     lasso_results_df = regression_per_symbol(filtered_df, date_col='DATETIME', target='LOG_RETURN_NoOVERNIGHT', features=features, alpha=0.1, model='lasso', standardize=False, pt=0.8)
     plot_scores(lasso_results_df, name="Lasso")
-
-
-
-    
-            
-    
-
-
