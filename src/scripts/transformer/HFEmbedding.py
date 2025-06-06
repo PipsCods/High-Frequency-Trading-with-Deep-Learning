@@ -45,6 +45,7 @@ class HFEmbedding(nn.Module):
         day_name = inputs[..., 2].long()
         hour = inputs[..., 3].long()
         minute = inputs[..., 4].long()
+        
 
         s = self.symbol_embed(symbol)      # [B, T, S, embed_dim_symbol]
         d = self.day_embed(day)            # [B, T, S, embed_dim_day]

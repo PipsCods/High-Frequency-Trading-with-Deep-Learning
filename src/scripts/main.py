@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # -----------------------------------------------------------------------------
 # Project‑specific helpers (assumed to live in your project package)
 # -----------------------------------------------------------------------------
-from utils.utils import df_to_transformer_input, tensor_to_dataset , df_to_transformer_input_fast
+from utils.utils import df_to_transformer_input, tensor_to_dataset , df_to_transformer_input_fast, ReadyToTransformerDataset
 from utils.data_preambule import prepare_hf_data, filter_stocks_with_full_coverage
 from utils.split_by_date_and_shift import split_and_shift_data
 
@@ -134,21 +134,21 @@ def build_dataloaders(
     batch_size: int,
 ):
     print("Building the dataloaders...")
-    train_signals, train_targets = df_to_transformer_input(
-        df=train_df,
-        basic_cat_features=basic_cat,
-        cat_features=cat,
-        cont_features=cont,
-        seq_len=seq_len,
-    )
+    # train_signals, train_targets = df_to_transformer_input(
+    #     df=train_df,
+    #     basic_cat_features=basic_cat,
+    #     cat_features=cat,
+    #     cont_features=cont,
+    #     seq_len=seq_len,
+    # )
 
-    test_signals, test_targets = df_to_transformer_input(
-        df=test_df,
-        basic_cat_features=basic_cat,
-        cat_features=cat,
-        cont_features=cont,
-        seq_len=seq_len,
-    )
+    # test_signals, test_targets = df_to_transformer_input(
+    #     df=test_df,
+    #     basic_cat_features=basic_cat,
+    #     cat_features=cat,
+    #     cont_features=cont,
+    #     seq_len=seq_len,
+    # )
 
     # train_signals, train_targets = df_to_transformer_input_fast(
     #     df=train_df,
@@ -160,10 +160,27 @@ def build_dataloaders(
     #     seq_len=seq_len,
     # )
 
+    train_dataset = ReadyToTransformerDataset(
+        df=train_df,
+        basic_cat_features=basic_cat,
+        cat_features=cat,
+        cont_features=cont,
+        seq_len=seq_len,
+        target_return= "target_return"
+    )
+
+    test_dataset =ReadyToTransformerDataset(
+        df=test_df,
+        basic_cat_features=basic_cat,
+        cat_features=cat,
+        cont_features=cont,
+        seq_len=seq_len,
+        target_return= "target_return"
+    )
 
 
-    train_loader = DataLoader(tensor_to_dataset(train_signals, train_targets), batch_size=batch_size)
-    test_loader = DataLoader(tensor_to_dataset(test_signals, test_targets), batch_size=batch_size)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size)
     return train_loader, test_loader
 
 
@@ -197,7 +214,7 @@ def build_config(
         "cat_feat_positions": cat_positions,
         "cont_feat_positions": cont_positions,
         "wrapper": "time",
-        "loss_method": "mssr",
+        "loss_method": "mse", #mssr
         "initial_attention": "time",
     }
 
@@ -322,13 +339,15 @@ def main():
     RETURN_COL = "RETURN_SiOVERNIGHT"
     LAGS = 6
     BATCH_SIZE = 16
-    NUM_EPOCHS = 5
+    NUM_EPOCHS = 50
+    
 
     # ------------------------------------------------------------------
     # LOAD & CLEAN
     # ------------------------------------------------------------------
     df = load_raw_data(RAW_PATH)
 
+    #df = df[df["DATE"] <= END_DATE]
     df = enrich_datetime(df)
 
     #df = restrict_time_window(df, END_DATE)
@@ -399,6 +418,7 @@ def main():
     # TRAINING
     # ------------------------------------------------------------------
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #device = "cpu"
     pipeline = ModelPipeline(config)
     pipeline.to(device)
 
@@ -410,18 +430,21 @@ def main():
     print(f"Best Test Loss: {best_loss:.4f}")
 
     preds, targets = pipeline.best_predictions.cpu().numpy(), pipeline.best_targets.cpu().numpy()
+  
 
     history_df = pd.DataFrame(history)
 
     pred_df = pd.DataFrame(preds, columns = vocab_maps['symbol'])
     target_df = pd.DataFrame(targets, columns = vocab_maps['symbol'])
 
-    breakpoint()
+
 
     history_df.to_pickle("results/model/losses.pickle")
     pred_df.to_pickle("results/model/predictions.pickle")
     target_df.to_pickle("results/model/targets.pickle")
 
+
+    breakpoint()
     # ------------------------------------------------------------------
     # VISUALISE
     # ------------------------------------------------------------------
