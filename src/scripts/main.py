@@ -214,7 +214,7 @@ def build_config(
         "cat_feat_positions": cat_positions,
         "cont_feat_positions": cont_positions,
         "wrapper": "time",
-        "loss_method": "mse", #mssr
+        "loss_method": "mssr", #mssr
         "initial_attention": "time",
     }
 
@@ -339,7 +339,7 @@ def main():
     RETURN_COL = "RETURN_SiOVERNIGHT"
     LAGS = 6
     BATCH_SIZE = 16
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 100
     
 
     # ------------------------------------------------------------------
@@ -439,9 +439,9 @@ def main():
 
 
 
-    history_df.to_pickle("results/model/losses.pickle")
-    pred_df.to_pickle("results/model/predictions.pickle")
-    target_df.to_pickle("results/model/targets.pickle")
+    history_df.to_pickle("losses_mssr.pickle", )
+    pred_df.to_pickle("predictions_mssr.pickle")
+    target_df.to_pickle("targets_mssr.pickle")
 
 
     breakpoint()
