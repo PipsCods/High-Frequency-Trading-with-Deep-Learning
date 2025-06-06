@@ -6,15 +6,67 @@ from torch.utils.data import TensorDataset, DataLoader, Dataset
 # =================
 # Functions
 # =================
-def timestamp_extract(df):
-    df.index = pd.to_datetime(df.index)
+def filter_top_risky_stocks_static(df, cutoff_date, window=20, quantiles=10, top_n=500, MOST_VOLATILE_STOCKS=False):
+    """
+    Computes rolling volatility up to a cutoff date using timestamp as index,
+    assigns quantile risk levels to each symbol, and filters full data to include
+    only the top-N most volatile stocks.
 
-    df['day'] = df.index.day
-    df['day_name'] = df.index.day_name()
-    df['hour'] = df.index.hour
-    df['minute'] = df.index.minute
+    Parameters:
+    - df: DataFrame with ['symbol', 'return'] and a datetime index
+    - cutoff_date: datetime or string (e.g., '2021-12-01')
+    - window: Rolling window size for volatility
+    - quantiles: Number of risk quantile buckets (0 = low, quantiles-1 = high)
+    - top_n: Number of top risky symbols to keep
 
-    return df
+    Returns:
+    - Filtered DataFrame with ['risk_std', 'risk_quantile'], full time range but limited to top-N risky symbols
+    """
+    if MOST_VOLATILE_STOCKS == False:
+        return df
+
+    df = df.sort_values(['SYMBOL', 'datetime']).copy()
+
+    # Subset up to cutoff date and compute rolling std per symbol
+    tmp = df[df['datetime'] <= cutoff_date].copy()
+    tmp['risk_std'] = tmp.groupby('SYMBOL')['return'] \
+                                   .transform(lambda x: x.rolling(window).std())
+
+    # Get last known volatility before cutoff for each symbol
+    latest_vol = (
+        tmp.dropna(subset=['risk_std'])
+                .groupby('SYMBOL')
+                .tail(1)[['SYMBOL', 'risk_std']]
+                .drop_duplicates('SYMBOL')
+    )
+
+    # Assign risk quantiles
+    latest_vol['risk_quantile'] = pd.qcut(
+        latest_vol['risk_std'], q=quantiles, labels=False, duplicates='drop'
+    )
+    latest_vol['risk_quantile'] = pd.Categorical(
+        latest_vol['risk_quantile'],
+        categories=range(quantiles),
+        ordered=True
+    )
+
+    # Keep only top-N risky symbols
+    top_symbols = (
+        latest_vol.sort_values('risk_quantile', ascending=False)
+                  .head(top_n)['SYMBOL']
+                  .unique()
+    )
+
+    # Merge risk quantile into full dataset and filter
+    df_filtered = df[df['SYMBOL'].isin(top_symbols)].merge(
+        latest_vol[['SYMBOL', 'risk_std', 'risk_quantile']],
+        on='SYMBOL',
+        how='left'
+    )
+
+    return df_filtered.reset_index(drop=False)  # Keep timestamp as a column
+
+
 
 def df_to_transformer_input_fast(
     df: pd.DataFrame,
@@ -132,6 +184,13 @@ def sanity_check(train_loader):
         print("Input dtype:", inputs.dtype)
         print("Target dtype:", targets.dtype)
         break  # just check the first batch
+
+def denormalize_targets(z_values, mean, std):
+    return z_values * std + mean
+
+# =================
+# Classes
+# =================
 
 
 class ReadyToTransformerDataset(Dataset):

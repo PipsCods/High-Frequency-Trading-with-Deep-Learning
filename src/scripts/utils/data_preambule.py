@@ -33,14 +33,12 @@ def filter_stocks_with_full_coverage(df, timestamp_col='timestamp', symbol_col='
 
 def augment_features(df: pd.DataFrame, symbol_col: str, return_col: str) -> pd.DataFrame:
 
-
     # df = df.copy()
     # df[time_col] = pd.to_datetime(df[time_col])
     # df = df.sort_values(by=[symbol_col, time_col])
 
     #window size for 1 hour (6 * 10min)
     window_size = 6
-
     
     grouped = df.groupby(symbol_col, group_keys=False)
 
@@ -60,7 +58,49 @@ def augment_features(df: pd.DataFrame, symbol_col: str, return_col: str) -> pd.D
 
     return df
 
-def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, name_of_return_column):
+def compute_hf_features_multiwindow(df, return_col='return', windows=[3, 6]):
+    """
+    Compute high-frequency features across multiple rolling windows.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame with a return column.
+        return_col (str): Name of the return column.
+        windows (list): List of window sizes to apply.
+
+    Returns:
+        pd.DataFrame: DataFrame with new columns for each window size.
+    """
+    df = df.copy()
+
+    for window in windows:
+        suffix = f"_{window}"
+
+        # Momentum
+        df[f'momentum{suffix}'] = df[return_col].rolling(window).sum()
+
+        # Cumulative volatility (realized volatility)
+        df[f'cum_volatility{suffix}'] = np.sqrt(
+            df[return_col].rolling(window).apply(lambda x: np.sum(x ** 2), raw=True)
+        )
+
+        # Rolling std dev
+        df[f'rolling_std{suffix}'] = df[return_col].rolling(window).std()
+
+        # Rolling mean
+        df[f'rolling_mean{suffix}'] = df[return_col].rolling(window).mean()
+
+        # Rolling Sharpe
+        df[f'rolling_sharpe{suffix}'] = df[f'rolling_mean{suffix}'] / (df[f'rolling_std{suffix}'] + 1e-6)
+
+        # Rolling skewness
+        df[f'rolling_skew{suffix}'] = df[return_col].rolling(window).skew()
+
+        # Rolling kurtosis
+        df[f'rolling_kurt{suffix}'] = df[return_col].rolling(window).kurt()
+
+    return df
+
+def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column):
     """
     Processes a high-frequency financial dataset to prepare it for training and testing.
 
@@ -68,7 +108,6 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, nam
         raw_df: DataFrame containing the raw data
         name_of_timestamp_column: Name of the column containing the timestamps
         name_of_symbol_column: Name of the column containing the stock symbols
-        name_of_mid_price_column : Name of the column containing the mid-price data
 
     Returns:
         - Cleaned DataFrame (indexed by Timestamp)
@@ -83,7 +122,7 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, nam
 
     # Verify that the columns exist in the DataFrame
     if not all(col in raw_df.columns for col in
-               [name_of_timestamp_column, name_of_symbol_column, name_of_return_column]):
+               [name_of_timestamp_column, name_of_symbol_column]):
         raise ValueError("The specified columns do not exist in the DataFrame.")
 
     # Convert and set timestamp
@@ -103,10 +142,6 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column, nam
     df['hour'] = df.index.hour
     df['minute'] = df.index.minute
     df['day_name'] = df.index.day_name()
-
-    # Compute return (by symbol)
-    df['return'] = df[name_of_return_column]
-    df.drop(columns= [name_of_return_column], inplace = True )
 
     # Fill missing values from return computation
     df.fillna(0, inplace=True)

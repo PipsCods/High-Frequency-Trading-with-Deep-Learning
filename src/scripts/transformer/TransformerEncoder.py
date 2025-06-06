@@ -17,7 +17,7 @@ class TransformerEncoder(nn.Module):
                  num_layers,# number of layers
                  expansion_factor, # this allows to boost the reasonning of the model in the FeedForward sublayer process
                  n_heads,# number of attention heads
-                 dropout,
+                 dropout
                  ):
 
         """
@@ -46,6 +46,7 @@ class TransformerEncoder(nn.Module):
         self.pos_encoder = PositionalEmbedding(seq_len, d_model)
 
         # Stack of Transformer blocks
+
         self.blocks = nn.ModuleList([
             TransformerBlock(d_model, n_heads, expansion_factor, dropout)
             for _ in range(num_layers)
