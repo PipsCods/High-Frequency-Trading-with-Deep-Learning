@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import time
 from sklearn.preprocessing import StandardScaler
-from transformer.MSSRLoss import MSSRLoss
+from transformer.CustomLoss import MSSRLoss
 
 
 

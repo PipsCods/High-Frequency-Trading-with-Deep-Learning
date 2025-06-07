@@ -1,5 +1,5 @@
 from transformer.CrossSectionalAttention import CrossSectionalSelfAttention
-from transformer.MSSRLoss import MSSRLoss
+from transformer.CustomLoss import CustomLoss
 from transformer.TransformerEncoder import TransformerEncoder
 from transformer.PredictionHead import PredictionHead
 from transformer.TemporalSelfAttention import TemporalSelfAttention
@@ -7,6 +7,8 @@ from transformer.TemporalSelfAttention import TemporalSelfAttention
 import torch
 import torch.nn as nn
 from tqdm import tqdm
+
+from src.scripts.transformer.Dummy import DummyPredictor
 
 
 class ModelPipeline(nn.Module):
@@ -29,11 +31,6 @@ class ModelPipeline(nn.Module):
             dropout=config['dropout'],
         )
 
-        """self.wrapper = Stock_time_wrapper(
-            d_model=config['d_model'],
-            n_heads=config['n_heads'],
-        )"""
-
         self.attention_mode = config['initial_attention']
 
         if config['wrapper'] == 'cross-sectional':
@@ -52,6 +49,8 @@ class ModelPipeline(nn.Module):
         else:
             self.wrapper = None
 
+        #self.predictor = DummyPredictor(constant_value=0.02)
+
         self.predictor = PredictionHead(
             d_model=config['d_model'],
             output_dim=config['output_dim'],
@@ -59,8 +58,10 @@ class ModelPipeline(nn.Module):
 
         if config['loss_method'] == 'mse':
             self.loss_fn = nn.MSELoss()
-        elif config['loss_method'] == 'mssr':
-            self.loss_fn = MSSRLoss()
+        elif config['loss_method'] == 'custom':
+            self.loss_fn = CustomLoss()
+        elif config['loss_method'] == 'huber':
+            self.loss_fn = nn.SmoothL1Loss()
         else:
             raise ValueError("Loss function not recognized")
 
@@ -110,10 +111,11 @@ class ModelPipeline(nn.Module):
         self.predictor.to(device)
 
     def parameters(self, **kwargs):
-        out = list(self.encoder.parameters()) + list(self.predictor.parameters())
+        out = list(self.encoder.parameters())
         if self.wrapper is not None:
-            out = out + list(self.wrapper.parameters())
-
+            out += list(self.wrapper.parameters())
+        if any(p.requires_grad for p in self.predictor.parameters()):
+            out += list(self.predictor.parameters())
         return out
 
     def train_mode(self):
@@ -234,4 +236,3 @@ class ModelPipeline(nn.Module):
 
         avg_train_loss = total_loss / num_batches
         return avg_train_loss
-

@@ -1,15 +1,19 @@
 import os
 import pandas as pd
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
+from src.scripts.transformer.CustomLoss import CustomLoss
 # -----------------------------------------------------------------------------
 # Project‑specific helpers (assumed to live in your project package)
 # -----------------------------------------------------------------------------
-from utils.utils import df_to_transformer_input, tensor_to_dataset , df_to_transformer_input_fast, ReadyToTransformerDataset
-from utils.data_preambule import prepare_hf_data, filter_stocks_with_full_coverage
+from utils.utils import df_to_transformer_input, tensor_to_dataset, df_to_transformer_input_fast, \
+    ReadyToTransformerDataset, denormalize_targets
+from utils.utils import filter_top_risky_stocks_static
+from utils.data_preambule import prepare_hf_data, filter_stocks_with_full_coverage, compute_hf_features_multiwindow
 from utils.split_by_date_and_shift import split_and_shift_data
 
 from model.model_init import ModelPipeline
@@ -21,11 +25,13 @@ from model.model_init import ModelPipeline
 
 def load_raw_data(path: str) -> pd.DataFrame:
     """Load the 10‑minute parquet file and basic‑clean null rows."""
+    print("Loading raw data...")
     df = pd.read_parquet(path)
 
     # drop symbols with *any* missing values to keep sequences contiguous
     bad_symbols = df[df.isnull().any(axis=1)]["SYMBOL"].unique()
     df = df[~df["SYMBOL"].isin(bad_symbols)].copy()
+
     return df
 
 
@@ -59,6 +65,7 @@ def build_feature_frames(
     basic_cat_features, cat_features, cont_features: lists of str
     cat_positions, cont_positions: list[int]
     """
+    print("Building features ...")
     (
         data,
         basic_cat_features,
@@ -70,7 +77,6 @@ def build_feature_frames(
         df,
         name_of_timestamp_column=timestamp_col,
         name_of_symbol_column=symbol_col,
-        name_of_return_column=return_col,
     )
 
     return (
@@ -104,18 +110,19 @@ def split_and_normalise(
     target_col: str = "return",
 ):
     """Train/val split by `date_split` and z‑score continuous features."""
-    train_df, test_df = split_and_shift_data(data, date_split=date_split, target_col=target_col)
+    print("Splitting data...")
+    train_df, test_df, tgt_mean, tgt_std = split_and_shift_data(data, date_split=date_split, target_col=target_col)
 
 
-    train_mean = train_df["return"].mean()
-    train_std = train_df["return"].std()
+    # train_mean = train_df["target_return"].mean()
+    # train_std = train_df["target_return"].std()
 
     scaler = StandardScaler()
     train_df[cont_features] = scaler.fit_transform(train_df[cont_features])
 
     test_df[cont_features] = scaler.transform(test_df[cont_features])
 
-    return train_df, test_df, scaler, train_mean, train_std
+    return train_df, test_df, scaler, tgt_mean, tgt_std
 
 
 # =============================================================================
@@ -133,7 +140,7 @@ def build_dataloaders(
     seq_len: int,
     batch_size: int,
 ):
-    print("Building the dataloaders...")
+    print("Building the dataloaders for training...")
     # train_signals, train_targets = df_to_transformer_input(
     #     df=train_df,
     #     basic_cat_features=basic_cat,
@@ -159,7 +166,6 @@ def build_dataloaders(
     #     df=test_df,
     #     seq_len=seq_len,
     # )
-
     train_dataset = ReadyToTransformerDataset(
         df=train_df,
         basic_cat_features=basic_cat,
@@ -168,7 +174,7 @@ def build_dataloaders(
         seq_len=seq_len,
         target_return= "target_return"
     )
-
+    print("Building dataloaders for testing...")
     test_dataset =ReadyToTransformerDataset(
         df=test_df,
         basic_cat_features=basic_cat,
@@ -178,9 +184,9 @@ def build_dataloaders(
         target_return= "target_return"
     )
 
-
     train_loader = DataLoader(train_dataset, batch_size=batch_size)
     test_loader = DataLoader(test_dataset, batch_size=batch_size)
+    print("Done")
     return train_loader, test_loader
 
 
@@ -205,17 +211,17 @@ def build_config(
         "num_cont_features": len(cont_positions),
         "d_model": 128,
         "seq_len": lags,
-        "num_layers": 1,
+        "num_layers": 8,
         "expansion_factor": 2,
-        "n_heads": 8,
-        "dropout": 0.0,
+        "n_heads": 16,
+        "dropout": 0.05,
         "output_dim": 1,
-        "lr": 1e-3,
+        "lr": 1e-7,
         "cat_feat_positions": cat_positions,
         "cont_feat_positions": cont_positions,
-        "wrapper": "time",
-        "loss_method": "mssr", #mssr
-        "initial_attention": "time",
+        "wrapper": None,
+        "loss_method": "custom", #mse or custom or huber
+        "initial_attention": "cross-sectional",
     }
 
 
@@ -244,7 +250,7 @@ def train_and_evaluate(
 
         print(
             f"Epoch {epoch:02d}/{num_epochs} | Train {train_loss:.4f} | "
-            f"Test {test_loss:.4f} | Directional Acc {accuracy:.4f}"
+            f"Test {test_loss:.4f} | Directional Acc {accuracy:.4f}"
         )
 
         if test_loss < best_loss:
@@ -333,25 +339,39 @@ def main():
     # ------------------------------------------------------------------
     RAW_PATH = os.path.join("..", "..", "data", "high_10m.parquet")
     END_DATE = "2021-12-10"
-    DATE_SPLIT = "2021-12-20"
+    DATE_SPLIT = "2021-12-17"
     TIMESTAMP_COL = "datetime"
     SYMBOL_COL = "SYMBOL"
     RETURN_COL = "RETURN_SiOVERNIGHT"
-    LAGS = 6
-    BATCH_SIZE = 16
-    NUM_EPOCHS = 100
-    
+    LAGS = 12
+    BATCH_SIZE = 32
+    NUM_EPOCHS = 50
+    MOST_VOLATILE_STOCKS = True
 
     # ------------------------------------------------------------------
     # LOAD & CLEAN
     # ------------------------------------------------------------------
     df = load_raw_data(RAW_PATH)
 
+    # Compute return (by symbol)
+    df['return'] = df[RETURN_COL]
+    df.drop(columns= [RETURN_COL], inplace = True )
+
     #df = df[df["DATE"] <= END_DATE]
     df = enrich_datetime(df)
 
     #df = restrict_time_window(df, END_DATE)
     df = filter_stocks_with_full_coverage(df, TIMESTAMP_COL, SYMBOL_COL)
+
+    print("Creating some financial variables...")
+    # Creating some financial variables
+    df = compute_hf_features_multiwindow(df, 'return')
+
+    # ------------------------------------------------------------------
+    # FILTER NUMBER OF STOCKS
+    # ------------------------------------------------------------------
+    df = filter_top_risky_stocks_static(df, cutoff_date=DATE_SPLIT, window=20, quantiles=100, top_n=800,
+                                          MOST_VOLATILE_STOCKS=MOST_VOLATILE_STOCKS)
 
     # ------------------------------------------------------------------
     # FEATURE ENGINEERING
@@ -365,18 +385,18 @@ def main():
         cont_positions,
     ) = build_feature_frames(df, TIMESTAMP_COL, SYMBOL_COL, RETURN_COL)
 
+
     # ------------------------------------------------------------------
     # ENCODE CATEGORICALS
     # ------------------------------------------------------------------
     data, vocab_maps = encode_categoricals(data, cat_cols=cat_features + basic_cat_features)
     symbol_reverse = {idx: val for val, idx in vocab_maps["symbol"].items()}
 
-
     # ------------------------------------------------------------------
     # SPLIT + NORMALISE
     # ------------------------------------------------------------------
 
-    train_df, test_df, _ , mean, std= split_and_normalise(data, DATE_SPLIT, cont_features)
+    train_df, test_df, _ , tgt_mean, tgt_std= split_and_normalise(data, DATE_SPLIT, cont_features)
 
 
     # ------------------------------------------------------------------
@@ -414,6 +434,35 @@ def main():
         LAGS,
     )
 
+    # Test if the loss function is working properly
+    """# After pipeline is created
+    pipeline = ModelPipeline(config)
+    pipeline.to("cpu")  # for easier debugging
+
+    # Get one batch
+    batch = next(iter(train_loader))
+    x_batch, y_batch = batch
+    x_batch = x_batch.to("cpu")
+    y_batch = y_batch.to("cpu")
+
+    # Set model to eval mode to disable dropout etc.
+    pipeline.eval_mode()
+
+    # Forward pass
+    with torch.no_grad():
+        out = pipeline(x_batch)
+
+    # Show results
+    print("\n=== Manual Debug ===")
+    print("Predictions (1st sample):", out[0].view(-1).cpu().numpy())
+    print("Targets     (1st sample):", y_batch[0].view(-1).cpu().numpy())
+
+    # Compute MSSR loss
+    loss_fn = MSSRLoss()
+    loss = loss_fn(out, y_batch)
+    print("MSE Loss:", loss.item())
+    breakpoint()"""
+
     # ------------------------------------------------------------------
     # TRAINING
     # ------------------------------------------------------------------
@@ -426,11 +475,14 @@ def main():
         pipeline, train_loader, test_loader, device, NUM_EPOCHS
     )
 
-    #torch.save(best_state, "transformer_model_best.pth")
+    torch.save(best_state, "transformer_model_best.pth")
     print(f"Best Test Loss: {best_loss:.4f}")
 
     preds, targets = pipeline.best_predictions.cpu().numpy(), pipeline.best_targets.cpu().numpy()
-  
+
+    # Denormalize
+    preds = denormalize_targets(preds, tgt_mean, tgt_std)
+    targets = denormalize_targets(targets, tgt_mean, tgt_std)
 
     history_df = pd.DataFrame(history)
 
@@ -438,20 +490,16 @@ def main():
     target_df = pd.DataFrame(targets, columns = vocab_maps['symbol'])
 
 
-
-    history_df.to_pickle("losses_mssr.pickle", )
-    pred_df.to_pickle("predictions_mssr.pickle")
-    target_df.to_pickle("targets_mssr.pickle")
+    history_df.to_pickle("results/model4/losses.pickle")
+    pred_df.to_pickle("results/model4/predictions.pickle")
+    target_df.to_pickle("results/model4/targets.pickle")
 
 
     breakpoint()
     # ------------------------------------------------------------------
     # VISUALISE
     # ------------------------------------------------------------------
-    #plot_performance(pipeline.best_predictions, pipeline.best_targets)
-
-
-
+    plot_performance(pipeline.best_predictions, pipeline.best_targets)
 
 
 if __name__ == "__main__":

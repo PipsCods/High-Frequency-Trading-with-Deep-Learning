@@ -1,27 +1,35 @@
 def split_and_shift_data(data, date_split: str, target_col='return_raw', group_col='symbol'):
     """
-    Splits the dataset into train and test based on timestamp and creates lagged target returns.
+    Splits dataset into train/test, smooths forward returns, normalizes targets.
 
     Args:
-        data (pd.DataFrame): Preprocessed dataset with timestamp index.
-        date_split (str): Cutoff date for train/test split
-        target_col (str): Column to be lagged as the target
-        group_col (str): Group by column for lagging
+        data (pd.DataFrame): Dataset with datetime index.
+        date_split (str): Cutoff date for train/test split.
+        target_col (str): Column containing raw returns.
+        group_col (str): Column used to group time series (e.g., stock symbol).
 
     Returns:
-        train_df (pd.DataFrame): Training set with target_return column.
-        test_df (pd.DataFrame): Testing set with target_return column.
+        train_df (pd.DataFrame): Training data with normalized 'target_return'.
+        test_df (pd.DataFrame): Testing data with normalized 'target_return'.
+        target_mean (float): Mean of train target_return before normalization.
+        target_std (float): Std of train target_return before normalization.
     """
     # Split
     train_df = data[data.index <= date_split].copy()
     test_df = data[data.index > date_split].copy()
 
-    # Shift target column by 1 within each group
-    train_df['target_return'] = train_df.groupby(group_col)[target_col].shift(-1)
-    test_df['target_return'] = test_df.groupby(group_col)[target_col].shift(-1)
+    for df in [train_df, test_df]:
+        group = df.groupby(group_col)[target_col]
+        df['target_return'] = group.shift(-1)
+        df['target_return'] = df['target_return']
+        df.dropna(subset=['target_return'], inplace=True)
 
-    # Drop resulting NA rows (at end of group)
-    train_df.dropna(subset=['target_return'], inplace=True)
-    test_df.dropna(subset=['target_return'], inplace=True)
+    # Normalize using training statistics
+    target_mean = train_df['target_return'].mean()
+    target_std = train_df['target_return'].std()
 
-    return train_df, test_df
+    train_df['target_return'] = (train_df['target_return'] - target_mean) / (target_std + 1e-8)
+    test_df['target_return'] = (test_df['target_return'] - target_mean) / (target_std + 1e-8)
+
+    return train_df, test_df, target_mean, target_std
+
