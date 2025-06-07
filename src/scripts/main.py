@@ -348,11 +348,11 @@ def main():
     SYMBOL_COL = "SYMBOL"
     RETURN_COL = "RETURN_SiOVERNIGHT"
     LAGS = 12
-    BATCH_SIZE = 16
+    BATCH_SIZE = 32
     NUM_EPOCHS = 50
     MOST_VOLATILE_STOCKS = True
     ALPHA = 1
-    WRAPPER = "time"
+    WRAPPER = None
     BASELINE = "time"
     TOT_STOCKS = 800
 
@@ -361,6 +361,7 @@ def main():
     # LOAD & CLEAN
     # ------------------------------------------------------------------
     df = load_raw_data(RAW_PATH)
+    breakpoint()
     # Compute return (by symbol)
     df['return'] = df[RETURN_COL]
     df.drop(columns= [RETURN_COL], inplace = True )
