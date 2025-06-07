@@ -157,7 +157,7 @@ def run_descriptive_analysis(df: pd.DataFrame):
     print(aggregated_df)
     print("-" * 55)
 
-def plot_intraday_patterns(df: pd.DataFrame):
+def compute_intraday_patterns(returns_df: pd.DataFrame, save_path: str = None):
     """
     Calculates and plots the aggregated intraday return and volatility patterns.
 
@@ -165,25 +165,19 @@ def plot_intraday_patterns(df: pd.DataFrame):
         df: DataFrame with a DatetimeIndex and a 'RETURN_NoOVERNIGHT' column.
     """
     # Ensure the index is a DatetimeIndex
-    if not isinstance(df.index, pd.DatetimeIndex):
+    if not isinstance(returns_df.index, pd.DatetimeIndex):
         raise TypeError("DataFrame index must be a DatetimeIndex.")
-
-    # Filter for actual trading returns to avoid distortion
-    trading_df = df[df['RETURN_NoOVERNIGHT'] != 0].copy()
-    if trading_df.empty:
-        print("No non-zero trading returns found. Cannot generate plots.")
-        return
 
     print("Calculating intraday statistics...")
     # Group by the time component of the index
-    intraday_stats = trading_df.groupby(trading_df.index.time).agg(
+    intraday_stats = returns_df.groupby(returns_df.index.time).agg(
         Average_Return=('RETURN_NoOVERNIGHT', 'mean'),
         Average_Volatility=('RETURN_NoOVERNIGHT', 'std')
     )
+
     # Sort by time to ensure the plot is in chronological order
     intraday_stats = intraday_stats.sort_index()
     print("Calculation complete.")
-
 
     print("Generating plots...")
     fig, axes = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
@@ -198,7 +192,7 @@ def plot_intraday_patterns(df: pd.DataFrame):
 
     # Plot 2: Average Volatility by Time Interval
     intraday_stats['Average_Volatility'].plot(kind='bar', ax=axes[1], color='salmon', edgecolor='black')
-    axes[1].set_title('Average 10-Minute Volatility (Std. Dev.) by Time of Day')
+    axes[1].set_title('Average 10-Minute Volatility by Time of Day')
     axes[1].set_ylabel('Average Volatility')
     axes[1].grid(axis='y', linestyle=':', alpha=0.7)
 
@@ -209,13 +203,23 @@ def plot_intraday_patterns(df: pd.DataFrame):
     axes[1].set_xticklabels(xtick_labels, rotation=45, ha='right')
     
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.show()
+    
+    if save_path:
+        output_path = Path(f"{save_path}/intraday_patterns.png")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(output_path)
+        print(f"Figure saved to: {output_path}")
+    else:
+        plt.show()
+
+    plt.close(fig)
 
 # --- Main execution block ---
 if __name__ == '__main__':
     
     BASE_DIR = Path.cwd()
     DATA_PATH = ".." / BASE_DIR / "data" / "processed" / "high_10m.parquet"
+    FIGURE_PATH_DIR = ".." / BASE_DIR / "results" / "figures"
 
     # 1. Load the raw data
     raw_df = load_data(DATA_PATH)
@@ -224,8 +228,8 @@ if __name__ == '__main__':
     # The result is stored back into a variable in the main scope.
     returns_df = filter_trading_returns(raw_df)
 
-    # 3. Run the analysis on the now-correctly-formatted returns_df
+    # 3. Run the analysis
     run_descriptive_analysis(returns_df)
 
-    # 4. Plot the intraday patterns, also using the correct returns_df
-    plot_intraday_patterns(returns_df)
+    # 4. Plot the intraday patterns
+    compute_intraday_patterns(returns_df, FIGURE_PATH_DIR)
