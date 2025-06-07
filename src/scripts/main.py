@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
-from src.scripts.transformer.CustomLoss import CustomLoss
+#from src.scripts.transformer.CustomLoss import CustomLoss
 # -----------------------------------------------------------------------------
 # Project‑specific helpers (assumed to live in your project package)
 # -----------------------------------------------------------------------------
@@ -202,6 +202,9 @@ def build_config(
     cont_positions: list[int],
     cat_positions: list[int],
     lags: int,
+    alpha: float,
+    wrapper,
+    initial_attention
 ):
     return {
         "basic_embed_dims": basic_embed_dims,
@@ -219,9 +222,10 @@ def build_config(
         "lr": 1e-7,
         "cat_feat_positions": cat_positions,
         "cont_feat_positions": cont_positions,
-        "wrapper": None,
+        "wrapper": wrapper,
         "loss_method": "custom", #mse or custom or huber
-        "initial_attention": "cross-sectional",
+        "alpha" : alpha,
+        "initial_attention": initial_attention,
     }
 
 
@@ -279,7 +283,7 @@ def plot_performance(preds: torch.Tensor, targets: torch.Tensor):
     sharpe = portfolio.mean() / portfolio.std()
 
     plt.figure(figsize=(10, 6))
-    plt.plot(cumulative, label="Market Timing")
+    plt.plot(cumulative, label="3")
     plt.plot(buy_hold, label="Buy & Hold")
     plt.title(f"Cumulative Returns (SR={sharpe:.2f})")
     plt.xlabel("Time Steps")
@@ -339,20 +343,24 @@ def main():
     # ------------------------------------------------------------------
     RAW_PATH = os.path.join("..", "..", "data", "high_10m.parquet")
     END_DATE = "2021-12-10"
-    DATE_SPLIT = "2021-12-17"
+    DATE_SPLIT = "2021-12-27"
     TIMESTAMP_COL = "datetime"
     SYMBOL_COL = "SYMBOL"
     RETURN_COL = "RETURN_SiOVERNIGHT"
     LAGS = 12
-    BATCH_SIZE = 32
+    BATCH_SIZE = 16
     NUM_EPOCHS = 50
     MOST_VOLATILE_STOCKS = True
+    ALPHA = 1
+    WRAPPER = "time"
+    BASELINE = "time"
+    TOT_STOCKS = 800
+
 
     # ------------------------------------------------------------------
     # LOAD & CLEAN
     # ------------------------------------------------------------------
     df = load_raw_data(RAW_PATH)
-
     # Compute return (by symbol)
     df['return'] = df[RETURN_COL]
     df.drop(columns= [RETURN_COL], inplace = True )
@@ -370,7 +378,7 @@ def main():
     # ------------------------------------------------------------------
     # FILTER NUMBER OF STOCKS
     # ------------------------------------------------------------------
-    df = filter_top_risky_stocks_static(df, cutoff_date=DATE_SPLIT, window=20, quantiles=100, top_n=800,
+    df = filter_top_risky_stocks_static(df, cutoff_date=DATE_SPLIT, window=20, quantiles=100, top_n=TOT_STOCKS,
                                           MOST_VOLATILE_STOCKS=MOST_VOLATILE_STOCKS)
 
     # ------------------------------------------------------------------
@@ -384,7 +392,6 @@ def main():
         cat_positions,
         cont_positions,
     ) = build_feature_frames(df, TIMESTAMP_COL, SYMBOL_COL, RETURN_COL)
-
 
     # ------------------------------------------------------------------
     # ENCODE CATEGORICALS
@@ -425,13 +432,16 @@ def main():
     }
 
     config = build_config(
-        basic_embed_dims,
-        embed_dims,
-        vocab_sizes_basic,
-        vocab_sizes_other,
-        cont_positions,
-        cat_positions,
-        LAGS,
+        basic_embed_dims=basic_embed_dims,
+        embed_dims=embed_dims,
+        vocab_sizes_basic=vocab_sizes_basic,
+        vocab_sizes_other=vocab_sizes_other,
+        cont_positions=cont_positions,
+        cat_positions=cat_positions,
+        lags=LAGS,
+        alpha=ALPHA,
+        wrapper=WRAPPER,
+        initial_attention=BASELINE
     )
 
     # Test if the loss function is working properly
@@ -475,7 +485,7 @@ def main():
         pipeline, train_loader, test_loader, device, NUM_EPOCHS
     )
 
-    torch.save(best_state, "transformer_model_best.pth")
+    #torch.save(best_state, "transformer_model_best.pth")
     print(f"Best Test Loss: {best_loss:.4f}")
 
     preds, targets = pipeline.best_predictions.cpu().numpy(), pipeline.best_targets.cpu().numpy()
@@ -490,9 +500,9 @@ def main():
     target_df = pd.DataFrame(targets, columns = vocab_maps['symbol'])
 
 
-    history_df.to_pickle("results/model4/losses.pickle")
-    pred_df.to_pickle("results/model4/predictions.pickle")
-    target_df.to_pickle("results/model4/targets.pickle")
+    # history_df.to_pickle("results/model4/losses.pickle")
+    # pred_df.to_pickle("results/model4/predictions.pickle")
+    # target_df.to_pickle("results/model4/targets.pickle")
 
 
     breakpoint()

@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from src.scripts.transformer.Dummy import DummyPredictor
+#from src.scripts.transformer.Dummy import DummyPredictor
 
 
 class ModelPipeline(nn.Module):
@@ -59,7 +59,7 @@ class ModelPipeline(nn.Module):
         if config['loss_method'] == 'mse':
             self.loss_fn = nn.MSELoss()
         elif config['loss_method'] == 'custom':
-            self.loss_fn = CustomLoss()
+            self.loss_fn = CustomLoss(alpha= config["alpha"])
         elif config['loss_method'] == 'huber':
             self.loss_fn = nn.SmoothL1Loss()
         else:
