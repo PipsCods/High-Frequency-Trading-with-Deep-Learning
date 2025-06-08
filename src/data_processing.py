@@ -68,11 +68,6 @@ def filter_trading_returns(df: pd.DataFrame) -> pd.DataFrame:
     # 4. Optional: Sort the index to be absolutely sure everything is in chronological order
     df = df.sort_index()
 
-    # --- DEBUGGING LINE 1 ---
-    # Let's confirm the index is correct at this point.
-    print(f"DEBUG: Index type after setting and sorting is: {type(df.index)}")
-    # ---
-
     # Create a cumulative‐count within each (DATE, SYMBOL) group
     group_idx = df.groupby([df.index.date, 'SYMBOL']).cumcount()
 
@@ -80,13 +75,6 @@ def filter_trading_returns(df: pd.DataFrame) -> pd.DataFrame:
     mask = (group_idx > 0) | ((group_idx == 0) & (df['RETURN_NoOVERNIGHT'] != 0))
 
     trading_returns_df = df[mask].copy()
-
-    # --- DEBUGGING LINE 2 ---
-    # Now, let's check the index type of the final DataFrame before it's returned.
-    print(f"DEBUG: Index type of the final DataFrame is: {type(trading_returns_df.index)}")
-    print("DEBUG: First 5 rows of the final DataFrame:")
-    print(trading_returns_df.head())
-    # ---
 
     if trading_returns_df.empty:
         print("Warning: No non-zero returns found after filtering.")
