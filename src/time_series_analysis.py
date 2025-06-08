@@ -186,9 +186,9 @@ def generate_outputs(results_path: str, save_tables_path: str = None, save_figur
 
     # == Table 1: ARIMA Model Order Frequency ==
     print("\n--- Table 1: Most Common ARIMA Model Orders ---")
-    order_counts = arima_df['order'].value_counts().reset_index()
+    order_counts = arima_df['order'].astype(str).value_counts().reset_index()
     order_counts.columns = ['Model Order', 'Frequency']
-
+    
     if save_tables_path:
         table_path = Path(f"{save_tables_path}/arima_order_frequency.tex")
         table_path.parent.mkdir(parents=True, exist_ok=True)
