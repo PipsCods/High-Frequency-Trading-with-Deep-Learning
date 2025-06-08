@@ -2,7 +2,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
-import warnings
 
 # Time series analysis libraries
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
@@ -13,10 +12,6 @@ from arch import arch_model
 from src.utils import load_data
 from src.data_processing import filter_trading_returns
 
-# Suppress warnings for cleaner output
-# warnings.filterwarnings("ignore")
-
-# --- Function Definitions ---
 
 def plot_autocorrelation(series: pd.Series, series_name: str, lags: int = 40):
     """
@@ -56,18 +51,13 @@ def run_auto_arima(series: pd.Series):
 
     Returns:
         The fitted ARIMA model object.
-    """
-    print("\n--- Running auto_arima to find the best ARIMA model ---")
-    
-    # We set d=0 because returns are already a differenced series (price[t] - price[t-1]).
-    # We are looking for an ARMA(p,q) model.
-    # trace=True will print the results of each model fit.
+    """    
     arima_model = auto_arima(
         series,
         start_p=1, start_q=1,
         max_p=5, max_q=5,
-        d=0,             # Crucial for returns data
-        seasonal=False,  # Assuming no seasonality for now
+        d=0,           
+        seasonal=False,
         trace=True,
         error_action='ignore',
         suppress_warnings=True,
@@ -88,11 +78,6 @@ def run_garch_analysis(series: pd.Series):
     Returns:
         The fitted GARCH model result object.
     """
-    print("\n--- Running GARCH(1,1) analysis for volatility ---")
-    
-    # A standard GARCH(1,1) model is a good starting point.
-    # p=1 refers to the ARCH term (past squared residuals).
-    # q=1 refers to the GARCH term (past conditional variances).
     garch_model = arch_model(series * 100, vol='Garch', p=1, q=1, dist='Normal')
     
     # We multiply by 100 to help the optimizer converge better
@@ -112,7 +97,6 @@ if __name__ == '__main__':
     returns_df = filter_trading_returns(raw_df)
 
     # 2. Select a single stock for analysis
-    # Time series models are run on a single series, not a whole DataFrame.
     SYMBOL_TO_ANALYZE = 'LOVE'
     
     stock_series = returns_df[returns_df['SYMBOL'] == SYMBOL_TO_ANALYZE]['LOG_RETURN_NoOVERNIGHT'].dropna()

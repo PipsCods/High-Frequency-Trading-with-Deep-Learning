@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import Ridge, Lasso, LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
+from pathlib import Path
 
 
 # Functions
@@ -187,8 +188,8 @@ def plot_scores(results_df: pd.DataFrame, name: str = "OLS")-> None:
 if __name__ == "__main__":
 
     # parameters
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_PATH = os.path.join(BASE_DIR, '..', '..', 'data', 'high_10m.parquet')
+    BASE_DIR = Path.cwd()
+    DATA_PATH = ".." / BASE_DIR / "data" / "processed" / "high_10m.parquet"
     NUM_LAGS = 4 #TODO: choose number of lags
     
     # Load data
