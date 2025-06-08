@@ -3,7 +3,7 @@ import argparse
 from src.data_processing import process_data
 # from src.training import train_model
 # from src.evaluation import evaluate_model
-# from src.backtesting import run_backtest
+# from src.strategy import run_strategy
 
 def main():
     parser = argparse.ArgumentParser(description="A modular pipeline for high-frequency return prediction.")
@@ -12,7 +12,7 @@ def main():
     parser.add_argument("--process-data", action="store_true", help="Run the data processing pipeline.")
     parser.add_argument("--train", action="store_true", help="Run the model training pipeline.")
     parser.add_argument("--evaluate", action="store_true", help="Evaluate the trained model's performance.")
-    # parser.add_argument("--backtest", action="store_true", help="Run a trading backtest using the model.")
+    # parser.add_argument("--strategy", action="store_true", help="Run a trading strategy using the model.")
 
     # --- Add arguments for file paths and hyperparameters ---
     parser.add_argument("--raw-data-path", type=str, default="data/raw/high_10m/*.csv.gz", help="Path to raw data.")
@@ -35,12 +35,12 @@ def main():
     #     print("\n--- STAGE: MODEL EVALUATION ---")
     #     evaluate_model(processed_path=args.processed_data_path, model_path=args.model_path)
 
-    # if args.backtest:
-    #     print("\n--- STAGE: TRADING BACKTEST ---")
-    #     run_backtest(processed_path=args.processed_data_path, model_path=args.model_path)
+    # if args.strategy:
+    #     print("\n--- STAGE: TRADING STRATEGY ---")
+    #     run_strategy(processed_path=args.processed_data_path, model_path=args.model_path)
 
     # If no flags were provided, show help message.
-    if not any([args.process_data, args.train, args.evaluate, args.backtest]):
+    if not any([args.process_data, args.train, args.evaluate, args.strategy]):
         print("No stage selected. Please specify a stage to run (e.g., --train). Use --help for more info.")
         parser.print_help()
 
