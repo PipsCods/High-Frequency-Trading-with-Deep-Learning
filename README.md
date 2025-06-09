@@ -18,16 +18,21 @@ High-Frequency-Trading-with-Deep-Learning/
 ├── notebooks/              # Jupyter notebooks for exploration and prototyping
 |
 ├── results/
-│   ├── models/             # Saved model weights
-│   └── figures/            # Plots and charts for the final report
+│   ├── models/                 # Saved model weights
+│   ├── figures/                # All plots and charts for the final report
+│   ├── tables/                 # All LaTeX tables for the final report
+│   ├── parameters/             # Saved parameters for benchmark models
+│   └── predictions/            # Saved out-of-sample predictions from benchmarks
 │
 ├── src/
 │   ├── __init__.py
-│   ├── data_processing.py  # Logic for the 'process-data' stage
-│   ├── training.py         # Logic for the 'train' stage
-│   ├── evaluation.py       # Logic for the 'evaluate' stage
-│   ├── strategy.py         # Logic for the 'strategy' stage
-│   └── utils.py            # Helper functions (e.g., custom loss, metrics)
+│   ├── data_analysis.py        # EDA and descriptive statistics pipeline
+│   ├── linear_benchmarks.py    # OLS, Ridge, and Lasso model pipeline
+│   ├── time_series_analysis.py # ARIMA and GARCH model pipeline
+│   ├── training.py             # Logic for the 'train' stage
+│   ├── evaluation.py           # Logic for the 'evaluate' stage
+│   ├── strategy.py             # Logic for the 'strategy' stage
+│   └── utils.py                # Helper functions used across modules
 |
 ├── .gitattributes
 ├── .gitignore
@@ -61,9 +66,9 @@ python -m venv venv
 source venv/bin/activate   # On Windows: `venv\Scripts\activate`
 ```
 
-Using conda:
+Using `conda` is recommended:
 ```bash
-conda create -n ml_finance python=3.9
+conda create -n ml_finance python=3.11
 conda activate ml_finance
 ```
 
@@ -73,11 +78,24 @@ pip install -r requirements.txt
 ```
 
 ### 4. Run a pipeline stage
-The project is controlled via main.py, which allows you to run each stage of the pipeline independently using flags.
+The project is controlled via `main.py`, which allows you to run each stage of the pipeline independently using flags.
 
-Process data:
+Run Data Analysis & EDA:
+* This generates descriptive statistics, tables, and plots about the dataset.
 ```bash
-python main.py --process-data
+python main.py --data-analysis
+```
+
+Train Benchmark Models:
+* This runs the OLS, Ridge, Lasso, ARIMA, and GARCH models for all stocks, saving their parameters and predictions.
+```bash
+python main.py --train-benchmarks
+```
+
+Evaluate Benchmark Models:
+* This uses the saved parameters to generate summary tables and figures for the benchmark models.
+```bash
+python main.py --evaluate-benchmarks
 ```
 
 Train Model:
@@ -107,7 +125,7 @@ To ensure full reproducibility and execute the entire pipeline from data process
 sh run.sh
 ```
 
-This script will execute all stages (`--process-data`, `--train`, `--evaluate`, `--strategy`) in the correct sequence.
+This script will execute all necessary stages in the correct sequence (e.g., data analysis, benchmark training, transformer training, evaluation, etc.).
 
 ## License
 
