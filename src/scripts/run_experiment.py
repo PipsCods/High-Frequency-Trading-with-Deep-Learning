@@ -24,10 +24,10 @@ def run_single_experiment(
     alpha: float,
     *,
     raw_path: str = os.path.join("..", "..", "data", "high_10m.parquet"),
-    n_epochs: int = 50,
+    n_epochs: int = 30,
     seq_len: int = 12,
     batch_size: int = 32,
-) -> dict[str, object]:
+) -> tuple:
     """
     Train once with the provided hyper-parameters and return both *scalar*
     metrics and several pd.Series objects (actual, predicted, per-epoch
@@ -103,7 +103,7 @@ def run_single_experiment(
     pipeline = ModelPipeline(cfg)
     pipeline.to(device)
 
-    best_state, best_loss, history = train_and_evaluate(
+    _, best_loss, history = train_and_evaluate(
         pipeline, train_loader, test_loader, device, n_epochs
     )
 
@@ -113,6 +113,14 @@ def run_single_experiment(
     targets = denormalize_targets(
         pipeline.best_targets.cpu().numpy(), tgt_mean, tgt_std
     )
+
+    preds_df = pd.DataFrame(preds, columns = vocab_maps['symbol'])
+    actual_df = pd.DataFrame(targets, columns = vocab_maps['symbol'])
+
+    long_actual = actual_df.reset_index().melt(id_vars= "index", var_name= "stock", value_name= "actual")
+    long_pred = preds_df.reset_index().melt(id_vars= "index", var_name= "stock", value_name= "pred")
+
+    combined = pd.merge(long_actual, long_pred, on= ["index", "stock"]).set_index("index")
     
     # Scalars
     sign_acc_final = (np.sign(preds) == np.sign(targets)).mean()
@@ -120,19 +128,24 @@ def run_single_experiment(
     portfolio= mt_ret.mean(axis=1)
     sharpe   = portfolio.mean() / (portfolio.std() + 1e-9)
 
-    # -------------------------------------------------
-    #  Build & return a dict with Series objects too --
-    # -------------------------------------------------
-    return {
+    metrics = {
         "best_loss"      : best_loss,
         "sign_acc_final" : sign_acc_final,
         "sharpe"         : sharpe,
-        "train_loss"     : pd.Series(history["train"]),
-        "test_loss"      : pd.Series(history["test"]),
-        "sign_accuracy"  : pd.Series(history["acc"]),
-        "predicted"      : pd.DataFrame(preds, columns = vocab_maps['symbol']),
-        "actual"         : pd.DataFrame(targets, columns = vocab_maps['symbol']),
     }
+
+    # predictions = {
+    #     "predicted"      : pd.DataFrame(preds, columns = vocab_maps['symbol']),
+    #     "actual"         : pd.DataFrame(targets, columns = vocab_maps['symbol']),
+    # }
+    # -------------------------------------------------
+    #  Build & return a dict with Series objects too --
+    # -------------------------------------------------
+    
+
+
+
+    return metrics, history, combined
 
 
 
@@ -142,27 +155,31 @@ def run_experiments():
     from pathlib import Path
 
     combos = [
-        # TOT_STOCKS = 200, baseline = cross-sectional, wrapper = time/None
+        #TOT_STOCKS = 200, baseline = cross-sectional, wrapper = time/None
+        # *[
+        #     (100, "cross-sectional", w, a)
+        #     for w in ("time", None)
+        #     for a in (1, 0.5, 0.01)
+        # ],
+        # #TOT_STOCKS = 200, baseline = time, wrapper = cross-sectional/None
+        # *[
+        #     (100, "time", w, a)
+        #     for w in ("cross-sectional", None)
+        #     for a in (1, 0.5, 0.01)
+        # ],
+        # #TOT_STOCKS = 800, baseline = time, wrapper = cross-sectional/None
+        # *[
+        #     (800, "time", w, a)
+        #     for w in ("cross-sectional", None)
+        #     for a in (1, 0.5, 0.01)
+        # ],
         *[
-            (100, "cross-sectional", w, a)
-            for w in ("time", None)
-            for a in (1, 0.5, 0.01)
-        ],
-        # TOT_STOCKS = 200, baseline = time, wrapper = cross-sectional/None
-        *[
-            (100, "time", w, a)
-            for w in ("cross-sectional", None)
-            for a in (1, 0.5, 0.01)
-        ],
-        # TOT_STOCKS = 800, baseline = time, wrapper = cross-sectional/None
-        *[
-            (800, "time", w, a)
-            for w in ("cross-sectional", None)
+            (500, "time", None, a)
             for a in (1, 0.5, 0.01)
         ],
     ]
 
-    results_path = Path("../../data/transformer_hft_experiments.csv")
+    results_path = Path("../../data/results/transformer_hft_metrics.csv")
     results_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Resume logic unchanged
@@ -184,7 +201,7 @@ def run_experiments():
 
         print(f"\n[RUN] stocks={tot} | baseline={baseline} | wrapper={wrapper} | α={a}")
         try:
-            metrics = run_single_experiment(
+            metrics, losses, predictions = run_single_experiment(
                 tot_stocks = tot,
                 baseline   = baseline,
                 wrapper    = wrapper,
@@ -203,10 +220,17 @@ def run_experiments():
             **metrics,          # <-- adds best_loss, sharpe, and *all* Series
         }
 
-        results_df = pd.concat([results_df, pd.DataFrame([row])], ignore_index=True)
+        metrics_df = pd.concat([results_df, pd.DataFrame([row])], ignore_index=True)
 
+        name_exp = "_".join([str(k) for k in key])
 
-        results_df.to_csv(results_path, index=False)      # <= persist immediately
+        metrics_df.to_csv(results_path, index=False)  # <= persist immediately
+
+        losses_df = pd.DataFrame(losses)
+        losses_df.to_csv(f"../../data/results/{name_exp}_losses.csv")
+
+        predictions.to_csv(f"../../data/results/{name_exp}_prediction.csv")
+
         print("saved")
 
     print("\nAll requested experiments attempted. Results at:", results_path)
