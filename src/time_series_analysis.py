@@ -15,8 +15,7 @@ from arch import arch_model
 # from arch.univariate.base import DataScaleWarning
 
 # Import utils
-from src.utils import load_data
-from src.data_processing import filter_trading_returns
+from src.utils import load_data, filter_trading_returns
 
 warnings.filterwarnings("ignore", category=FutureWarning, module='sklearn')
 # warnings.filterwarnings("ignore", category=DataScaleWarning)
@@ -297,11 +296,11 @@ if __name__ == '__main__':
     FIGURES_PATH = ".." / BASE_DIR / "results" / "figures"
 
     # 1. Load and processed data
-    # raw_df = load_data(DATA_PATH)
-    # returns_df = filter_trading_returns(raw_df)
+    raw_df = load_data(DATA_PATH)
+    returns_df = filter_trading_returns(raw_df)
 
     # 2. Run full analysis and generate outputs
-    # run_full_analysis(returns_df, SAVE_PATH)
+    run_full_analysis(returns_df, SAVE_PATH)
 
     # 3. Generate summary tables and figures
     generate_outputs(SAVE_PATH, TABLES_PATH, FIGURES_PATH)

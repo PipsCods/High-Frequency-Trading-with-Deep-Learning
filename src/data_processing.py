@@ -1,10 +1,11 @@
 # Import necessary libraries
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from pathlib import Path
 
 # Import utils
-from src.utils import load_data
+from src.utils import load_data, filter_trading_returns
 
 def identify_outlier_stocks(stats_df: pd.DataFrame) -> list:
     """
@@ -42,44 +43,6 @@ def identify_outlier_stocks(stats_df: pd.DataFrame) -> list:
 
     return outlier_symbols
 
-def filter_trading_returns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Filters the DataFrame to include only actual trading periods.
-
-    Args:
-        df: The input DataFrame with a 'RETURN_NoOVERNIGHT' column.
-
-    Returns:
-        A new DataFrame containing only rows with non-zero returns.
-    """
-    # The zeros filled in are not real trading returns.
-    df = df.sort_values(['DATE', 'SYMBOL', 'TIME']).reset_index(drop=True)
-
-    # 1. Combine DATE and the TIME object into a single string
-    #    (Assuming TIME is in a format like 'HH:MM:SS')
-    df['DATETIME'] = df['DATE'].astype(str) + ' ' + df['TIME'].astype(str)
-
-    # 2. Convert this new string column to a datetime object
-    df['DATETIME'] = pd.to_datetime(df['DATETIME'])
-
-    # 3. Set this as the DataFrame's index
-    df = df.set_index('DATETIME')
-
-    # 4. Optional: Sort the index to be absolutely sure everything is in chronological order
-    df = df.sort_index()
-
-    # Create a cumulative‐count within each (DATE, SYMBOL) group
-    group_idx = df.groupby([df.index.date, 'SYMBOL']).cumcount()
-
-    # Build a mask to keep rows if:
-    mask = (group_idx > 0) | ((group_idx == 0) & (df['RETURN_NoOVERNIGHT'] != 0))
-
-    trading_returns_df = df[mask].copy()
-
-    if trading_returns_df.empty:
-        print("Warning: No non-zero returns found after filtering.")
-        
-    return trading_returns_df
 
 def calculate_stats_per_stock(returns_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -196,11 +159,24 @@ def compute_intraday_patterns(returns_df: pd.DataFrame, save_path: str = None):
         output_path = Path(f"{save_path}/intraday_patterns.png")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(output_path)
-        print(f"Figure saved to: {output_path}")
+        # print(f"Figure saved to: {output_path}")
     else:
         plt.show()
 
     plt.close(fig)
+
+def plot_correlation_heatmap(returns_df: pd.DataFrame, save_path: str = None):
+    pivot_df = returns_df.pivot(columns='SYMBOL', values='RETURN_NoOVERNIGHT')
+    corr_matrix = pivot_df.corr()
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr_matrix, cmap='coolwarm', center=0)
+    plt.title('Correlation Matrix of Stock Returns')
+    if save_path:
+        output_path = Path(f"{save_path}/correlation_heatmap.png")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(output_path)
+        # print(f"Figure saved to: {output_path}")
+    plt.show()
 
 # --- Main execution block ---
 if __name__ == '__main__':
@@ -221,3 +197,6 @@ if __name__ == '__main__':
 
     # 4. Plot the intraday patterns
     compute_intraday_patterns(returns_df, FIGURE_PATH_DIR)
+
+    # 5. Plot the correlation heatmap
+    # plot_correlation_heatmap(returns_df, FIGURE_PATH_DIR)
