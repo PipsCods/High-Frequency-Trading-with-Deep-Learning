@@ -247,7 +247,6 @@ def run_statistical_summary_for_stock(df_stock: pd.DataFrame, target_col: str, f
     print(model.summary())
     print("-" * 70)
 
-
 if __name__ == "__main__":
     # --- Configuration ---
     BASE_DIR = Path.cwd()

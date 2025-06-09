@@ -18,6 +18,25 @@ def load_data(file_path: str) -> pd.DataFrame:
         return pd.DataFrame()  # Return an empty DataFrame on error
     
 
+def remove_outlier_returns(df: pd.DateFrame, column: str = 'RETURN_NoOVERNIGHT', lower_percentile: float = 0.01, upper_percentile: float = 0.99):
+    """
+    Removes outlier returns from the specified column in the DataFrame by clipping values
+    to the specified lower and upper percentiles.
+    """
+    if df.empty or column not in df.columns:
+        print(f"Warning: Empty DataFrame or '{column}' not found.")
+        return df
+    if not (0 <= lower_percentile < upper_percentile <= 1):
+        print("Warning: Invalid percentiles provided.")
+        return df
+    
+    lower_bound = df[column].quantile(lower_percentile)
+    upper_bound = df[column].quantile(upper_percentile)
+    df_copy = df.copy()
+    df_copy[column] = df_copy[column].clip(lower=lower_bound, upper=upper_bound)
+    return df_copy
+
+
 def filter_trading_returns(df: pd.DataFrame) -> pd.DataFrame:
     """
     Filters the DataFrame to include only actual trading periods.
@@ -55,6 +74,9 @@ def filter_trading_returns(df: pd.DataFrame) -> pd.DataFrame:
     symbol_counts = trading_returns_df['SYMBOL'].value_counts()
     top_symbols = symbol_counts.head(150).index.tolist()
     trading_returns_df = trading_returns_df[trading_returns_df['SYMBOL'].isin(top_symbols)]
+
+    # Remove outliers
+    trading_returns_df = remove_outlier_returns(trading_returns_df, column='RETURN_NoOVERNIGHT')
 
     if trading_returns_df.empty:
         print("Warning: No non-zero returns found after filtering.")
