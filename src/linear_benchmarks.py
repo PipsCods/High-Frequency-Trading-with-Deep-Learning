@@ -79,7 +79,10 @@ def fit_single_regression(df_stock: pd.DataFrame, target_col: str, feature_cols:
     # Fit the model and make predictions
     model.fit(X_train_scaled, y_train)
     y_pred = model.predict(X_test_scaled)
-    
+
+    # Create a pandas Series for predictions with the correct index
+    predictions_series = pd.Series(y_pred, index=y_test.index, name='predicted_return')
+
     # Calculate metrics and residuals
     residuals = y_test - y_pred
     mse = mean_squared_error(y_test, y_pred)
@@ -92,7 +95,12 @@ def fit_single_regression(df_stock: pd.DataFrame, target_col: str, feature_cols:
         'mae': mae,
         'r2': r2,
         'hit_rate': hit_rate,
+        'intercept': model.intercept_,
         'coefficients': dict(zip(feature_cols, model.coef_)),
+        'scaler_mean': scaler.mean_,
+        'scaler_scale': scaler.scale_,
+        'model_type': model_type,
+        'predictions_series': predictions_series,
         'predictions': y_pred,
         'actuals': y_test,
         'residuals': residuals
@@ -133,6 +141,44 @@ def run_regressions_for_all_stocks(df: pd.DataFrame, target_col: str, feature_co
         print(f"Completed processing for {len(valid_results)} stocks.")
 
     return all_results
+
+
+def save_model_outputs(results_list: list, model_name: str, params_dir: Path, preds_dir: Path):
+    """Saves model parameters/metrics and test set predictions to parquet files."""
+    if not results_list:
+        print(f"No results to save for {model_name}.")
+        return
+    
+    # These keys hold complex objects (Series/arrays) used only for diagnostics.
+    keys_to_exclude = ['predictions_series', 'predictions', 'actuals', 'residuals']
+
+    # Exclude prediction Series from the params DataFrame
+    params_data = [{k: v for k, v in res.items() if k not in keys_to_exclude} for res in results_list]
+    params_df = pd.DataFrame(params_data)
+    
+    # Create save paths and save the file
+    params_dir.mkdir(parents=True, exist_ok=True)
+    params_path = params_dir / f"{model_name}_parameters.parquet"
+    params_df.to_parquet(params_path)
+    # print(f"Parameters for {model_name} saved to {params_path}")
+
+    # Save Predictions
+    all_preds_list = []
+    for res in results_list:
+        preds_series = res['predictions_series']
+        preds_df = preds_series.to_frame()
+        preds_df['SYMBOL'] = res['symbol']
+        all_preds_list.append(preds_df)
+        
+    # Concatenate all prediction DataFrames
+    full_preds_df = pd.concat(all_preds_list)
+    full_preds_df = full_preds_df.reset_index().rename(columns={'DATETIME_INDEX': 'DATETIME', 'index': 'DATETIME'})
+
+    # Create save paths and save the file
+    preds_dir.mkdir(parents=True, exist_ok=True)
+    preds_path = preds_dir / f"{model_name}_predictions.parquet"
+    full_preds_df.to_parquet(preds_path)
+    # print(f"Predictions for {model_name} saved to {preds_path}")
 
 
 def plot_metric_distributions(results_df: pd.DataFrame, model_name: str, save_path_dir: Path = None):
@@ -249,7 +295,9 @@ if __name__ == "__main__":
     DATA_PATH = BASE_DIR / "data" / "processed" / "high_10m.parquet"
     RESULTS_DIR = BASE_DIR / "results"
     FIGURES_DIR = RESULTS_DIR / "figures" / "linear_models"
-    
+    PARAMS_DIR = RESULTS_DIR / "parameters"
+    PREDS_DIR = RESULTS_DIR / "predictions"
+
     NUM_LAGS = 5
     MIN_DAILY_RETURNS = 15
     TARGET_COL = 'LOG_RETURN_NoOVERNIGHT'
@@ -257,7 +305,7 @@ if __name__ == "__main__":
 
     EXAMPLE_STOCK = 'TWLO'
 
-    # 1. Load and processed data
+    # Load and processed data
     raw_df = load_data(DATA_PATH)
     returns_df = filter_trading_returns(raw_df)
 
@@ -265,13 +313,17 @@ if __name__ == "__main__":
     df_with_features = create_lag_features(returns_df, NUM_LAGS, TARGET_COL, MIN_DAILY_RETURNS)
     feature_cols = [f'{TARGET_COL}_lag_{i}' for i in range(1, NUM_LAGS + 1)]
 
-    # --- Run Regressions ---
+    # Run Regressions
     all_results = run_regressions_for_all_stocks(df_with_features, TARGET_COL, feature_cols, MODELS_TO_RUN)
 
-    # --- Generate Report Outputs ---
+    # Generate Report Outputs
     for model_name, results_df in all_results.items():
         if not results_df.empty:
-            # Add model name to each row for the diagnostic plot function
+            # Save parameters and predictions
+            results_list = results_df.to_dict('records')
+            save_model_outputs(results_list, model_name, PARAMS_DIR, PREDS_DIR)
+
+            # Create DataFrame for plotting
             results_df['model_name'] = model_name.upper()
 
             # Plot aggregated metrics and coefficients
@@ -282,7 +334,7 @@ if __name__ == "__main__":
             for i, row in results_df.head(2).iterrows():
                 plot_diagnostic_for_stock(row, save_path_dir=FIGURES_DIR)
 
-    # --- Run Detailed Statistical Summary for an Example Stock ---
+    # Run Detailed Statistical Summary for an Example Stock
     if EXAMPLE_STOCK:
         example_stock_df = df_with_features[df_with_features['SYMBOL'] == EXAMPLE_STOCK]
         if not example_stock_df.empty:
