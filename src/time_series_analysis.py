@@ -15,7 +15,11 @@ from arch import arch_model
 from arch.univariate.base import DataScaleWarning
 
 # Import utils
-from src.utils import load_data, filter_trading_returns, data_split
+# Utils imports
+try:
+    from .utils import load_data, filter_trading_returns, data_split
+except ImportError:
+    from utils import load_data, filter_trading_returns, data_split
 
 warnings.filterwarnings("ignore", category=FutureWarning, module='sklearn')
 warnings.filterwarnings("ignore", category=DataScaleWarning)
@@ -235,6 +239,34 @@ def generate_outputs(params_dir: Path, tables_dir: Path, figures_dir: Path):
         print(f"Skipping GARCH reports. Error: {e}. Check if garch_results.parquet exists.")
 
 
+# --- Main Pipeline Function (for import) ---
+def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Path):
+    """
+    Runs the full time series analysis pipeline including ARIMA and GARCH models.
+    """
+    print("--- Running Time Series Models Training Pipeline ---")
+
+    # Constants
+    TARGET_COL = 'RETURN_NoOVERNIGHT'
+    SPLIT_DATETIME = '2021-12-27 00:00:00'
+
+    returns_df = filter_trading_returns(load_data(data_path))
+
+    if not returns_df.empty:
+        run_full_analysis(returns_df, TARGET_COL, SPLIT_DATETIME, params_dir, preds_dir)
+        print("Time series models pipeline completed.")
+    else:
+        print("No valid trading returns data found. Skipping time series models pipeline.")
+    print("--- Time Series Models Training Pipeline Complete ---")
+
+def generate_summary_reports(params_dir: Path, tables_dir: Path, figures_dir: Path):
+    """
+    Generates summary reports from the saved parameters and predictions.
+    """
+    print("--- Generating Summary Tables and Figures ---")
+    generate_outputs(params_dir, tables_dir, figures_dir)
+
+
 # --- Main Execution Block ---
 if __name__ == '__main__':
     BASE_DIR = Path.cwd()
@@ -249,8 +281,7 @@ if __name__ == '__main__':
     SPLIT_DATETIME = '2021-12-27 00:00:00'
 
     # 1. Load and process data
-    raw_df = load_data(DATA_PATH)
-    returns_df = filter_trading_returns(raw_df)
+    returns_df = filter_trading_returns(load_data(DATA_PATH))
 
     if not returns_df.empty:
         # 2. Run the full analysis (forecasting and parameter saving)

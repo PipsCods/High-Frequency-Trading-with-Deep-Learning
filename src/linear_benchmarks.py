@@ -18,8 +18,11 @@ from sklearn.preprocessing import StandardScaler
 import statsmodels.api as sm
 from statsmodels.graphics.tsaplots import plot_acf
 
-# Helper imports
-from src.utils import load_data, filter_trading_returns, data_split
+# Utils imports
+try:
+    from .utils import load_data, filter_trading_returns, data_split
+except ImportError:
+    from utils import load_data, filter_trading_returns, data_split
 
 warnings.filterwarnings("ignore", category=FutureWarning, module='sklearn')
 
@@ -289,6 +292,47 @@ def run_statistical_summary_for_stock(df_stock: pd.DataFrame, target_col: str, f
     print(model.summary())
     print("-" * 70)
 
+
+# --- Main Pipeline Function (for import) ---
+def run_linear_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Path, figures_dir: Path):
+    """
+    Main function to run the linear regression models pipeline.
+    Loads data, creates lag features, runs regressions, and generates reports.
+    """
+    print("--- Running Linear Benchmarks Pipeline ---")
+
+    # Config params for the linear regression models
+    NUM_LAGS = 5
+    MIN_DAILY_RETURNS = 15
+    TARGET_COL = 'LOG_RETURN_NoOVERNIGHT'
+    MODELS_TO_RUN = ['linear', 'ridge', 'lasso']
+
+    # Load and process data
+    returns_df = filter_trading_returns(load_data(data_path))
+    
+    # Create lag features
+    df_with_features = create_lag_features(returns_df, NUM_LAGS, TARGET_COL, MIN_DAILY_RETURNS)
+    feature_cols = [f'{TARGET_COL}_lag_{i}' for i in range(1, NUM_LAGS + 1)]
+
+    # Run regressions for all stocks
+    all_results = run_regressions_for_all_stocks(df_with_features, TARGET_COL, feature_cols, MODELS_TO_RUN)
+
+    # Save model outputs and generate plots
+    for model_name, results_df in all_results.items():
+        if not results_df.empty:
+            results_list = results_df.to_dict('records')
+            save_model_outputs(results_list, model_name, params_dir, preds_dir)
+
+            # Plot metrics and coefficients
+            plot_metric_distributions(results_df, model_name.upper(), save_path_dir=figures_dir)
+            plot_coefficient_distributions(results_df, model_name.upper(), save_path_dir=figures_dir)
+
+            # Generate diagnostics for the first 2 stocks
+            for i, row in results_df.head(2).iterrows():
+                plot_diagnostic_for_stock(row, save_path_dir=figures_dir)
+
+    print("--- Linear Benchmarks Pipeline Complete ---")
+
 if __name__ == "__main__":
     # --- Configuration ---
     BASE_DIR = Path.cwd()
@@ -298,44 +342,17 @@ if __name__ == "__main__":
     PARAMS_DIR = RESULTS_DIR / "parameters"
     PREDS_DIR = RESULTS_DIR / "predictions"
 
-    NUM_LAGS = 5
-    MIN_DAILY_RETURNS = 15
-    TARGET_COL = 'LOG_RETURN_NoOVERNIGHT'
-    MODELS_TO_RUN = ['linear', 'ridge', 'lasso']
+    # Call the main pipeline function
+    run_linear_models_pipeline(
+        data_path=DATA_PATH,
+        params_dir=PARAMS_DIR,
+        preds_dir=PREDS_DIR,
+        figures_dir=FIGURES_DIR
+    )
 
-    EXAMPLE_STOCK = 'TWLO'
-
-    # Load and processed data
-    raw_df = load_data(DATA_PATH)
-    returns_df = filter_trading_returns(raw_df)
-
-    # Create lag features
-    df_with_features = create_lag_features(returns_df, NUM_LAGS, TARGET_COL, MIN_DAILY_RETURNS)
-    feature_cols = [f'{TARGET_COL}_lag_{i}' for i in range(1, NUM_LAGS + 1)]
-
-    # Run Regressions
-    all_results = run_regressions_for_all_stocks(df_with_features, TARGET_COL, feature_cols, MODELS_TO_RUN)
-
-    # Generate Report Outputs
-    for model_name, results_df in all_results.items():
-        if not results_df.empty:
-            # Save parameters and predictions
-            results_list = results_df.to_dict('records')
-            save_model_outputs(results_list, model_name, PARAMS_DIR, PREDS_DIR)
-
-            # Create DataFrame for plotting
-            results_df['model_name'] = model_name.upper()
-
-            # Plot aggregated metrics and coefficients
-            plot_metric_distributions(results_df, model_name.upper(), save_path_dir=FIGURES_DIR)
-            plot_coefficient_distributions(results_df, model_name.upper(), save_path_dir=FIGURES_DIR)
-
-            # Generate diagnostic plots for the first 2 stocks in the results
-            for i, row in results_df.head(2).iterrows():
-                plot_diagnostic_for_stock(row, save_path_dir=FIGURES_DIR)
-
+    # EXAMPLE_STOCK = 'TWLO'
     # Run Detailed Statistical Summary for an Example Stock
-    if EXAMPLE_STOCK:
-        example_stock_df = df_with_features[df_with_features['SYMBOL'] == EXAMPLE_STOCK]
-        if not example_stock_df.empty:
-            run_statistical_summary_for_stock(example_stock_df, TARGET_COL, feature_cols)
+    # if EXAMPLE_STOCK:
+    #     example_stock_df = df_with_features[df_with_features['SYMBOL'] == EXAMPLE_STOCK]
+    #     if not example_stock_df.empty:
+    #         run_statistical_summary_for_stock(example_stock_df, TARGET_COL, feature_cols)

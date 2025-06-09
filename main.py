@@ -1,6 +1,11 @@
-# main.py
+# Packages and modules for the pipeline
 import argparse
-from src.data_analysis import process_data
+from pathlib import Path
+
+# Import custom modules for each stage of the pipeline
+from src.data_analysis import run_data_analysis_pipeline
+from src.linear_benchmarks import run_linear_models_pipeline
+from src.time_series_analysis import run_timeseries_models_pipeline, generate_summary_reports
 # from src.training import train_model
 # from src.evaluation import evaluate_model
 # from src.strategy import run_strategy
@@ -8,24 +13,43 @@ from src.data_analysis import process_data
 def main():
     parser = argparse.ArgumentParser(description="A modular pipeline for high-frequency return prediction.")
 
+    # --- Define consistent paths ---
+    BASE_DIR = Path.cwd()
+    PROCESSED_DATA_PATH = BASE_DIR / "data" / "processed" / "high_10m.parquet"
+    RESULTS_DIR = BASE_DIR / "results"
+    FIGURES_DIR = RESULTS_DIR / "figures"
+    TABLES_DIR = RESULTS_DIR / "tables"
+    PARAMS_DIR = RESULTS_DIR / "parameters"
+    PREDS_DIR = RESULTS_DIR / "predictions"
+
     # --- Add flags for each pipeline stage ---
-    parser.add_argument("--process-data", action="store_true", help="Run the data processing pipeline.")
-    parser.add_argument("--train", action="store_true", help="Run the model training pipeline.")
-    parser.add_argument("--evaluate", action="store_true", help="Evaluate the trained model's performance.")
+    parser.add_argument("--data-analysis", action="store_true", help="Run the data exploration and analysis pipeline.")
+    parser.add_argument("--train-benchmarks", action="store_true", help="Run all benchmark model training pipelines.")
+    parser.add_argument("--evaluate-benchmarks", action="store_true", help="Generate reports for benchmark models.")
+
+    # parser.add_argument("--train", action="store_true", help="Run the model training pipeline.")
+    # parser.add_argument("--evaluate", action="store_true", help="Evaluate the trained model's performance.")
     # parser.add_argument("--strategy", action="store_true", help="Run a trading strategy using the model.")
 
     # --- Add arguments for file paths and hyperparameters ---
-    parser.add_argument("--raw-data-path", type=str, default="data/raw/high_10m/*.csv.gz", help="Path to raw data.")
-    parser.add_argument("--processed-data-path", type=str, default="data/processed/high_10m.parquet", help="Path for processed data.")
     # parser.add_argument("--model-path", type=str, default="results/models/best_model.pth", help="Path to save/load the model.")
     # parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs.")
     
     args = parser.parse_args()
 
     # --- Execute the selected stage(s) ---
-    if args.process_data:
-        print("\n--- STAGE: DATA PROCESSING ---")
-        process_data(raw_path=args.raw_data_path, processed_path=args.processed_data_path)
+    if args.data_analysis:
+        print("\n--- STAGE: DATA ANALYSIS & EDA ---")
+        run_data_analysis_pipeline(PROCESSED_DATA_PATH, FIGURES_DIR / "data_analysis", TABLES_DIR)
+
+    if args.train_benchmarks:
+        print("\n--- STAGE: BENCHMARK MODEL TRAINING ---")
+        run_linear_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR, FIGURES_DIR / "linear_models")
+        run_timeseries_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR)
+
+    if args.evaluate_benchmarks:
+        print("\n--- STAGE: BENCHMARK MODEL EVALUATION ---")
+        generate_summary_reports(PARAMS_DIR, TABLES_DIR, FIGURES_DIR / "time_series")
 
     # if args.train:
     #     print("\n--- STAGE: MODEL TRAINING ---")

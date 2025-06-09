@@ -5,8 +5,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 
-# Import utils
-from src.utils import load_data, filter_trading_returns
+# Utils imports
+try:
+    from .utils import load_data, filter_trading_returns
+except ImportError:
+    from utils import load_data, filter_trading_returns
 
 def identify_outlier_stocks(stats_df: pd.DataFrame) -> list:
     """
@@ -216,6 +219,20 @@ def plot_correlation_distribution(returns_df: pd.DataFrame, figures_dir: Path = 
         plt.savefig(output_path)
     
     plt.close()
+
+# --- Main Pipeline Function (for import) ---
+def run_data_analysis_pipeline(data_path: Path, figures_dir: Path, tables_dir: Path):
+    """Orchestrates the entire data analysis and EDA pipeline."""
+    print("--- Running Data Analysis & EDA Pipeline ---")
+    returns_df = filter_trading_returns(load_data(data_path))
+    if returns_df.empty:
+        print("Data is empty. Halting analysis.")
+        return
+    run_descriptive_analysis(returns_df, tables_dir=tables_dir)
+    compute_intraday_patterns(returns_df, figures_dir=figures_dir)
+    plot_correlation_distribution(returns_df, figures_dir=figures_dir)
+    print("--- Data Analysis & EDA Pipeline Complete ---")
+
 
 # --- Main execution block ---
 if __name__ == '__main__':
