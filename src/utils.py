@@ -71,9 +71,9 @@ def filter_trading_returns(df: pd.DataFrame) -> pd.DataFrame:
     trading_returns_df = df[mask].copy()
 
     # TO REMOVE
-    symbol_counts = trading_returns_df['SYMBOL'].value_counts()
-    top_symbols = symbol_counts.head(150).index.tolist()
-    trading_returns_df = trading_returns_df[trading_returns_df['SYMBOL'].isin(top_symbols)]
+    # symbol_counts = trading_returns_df['SYMBOL'].value_counts()
+    # top_symbols = symbol_counts.head(150).index.tolist()
+    # trading_returns_df = trading_returns_df[trading_returns_df['SYMBOL'].isin(top_symbols)]
 
     # Remove outliers
     trading_returns_df = remove_outlier_returns(trading_returns_df, column='RETURN_NoOVERNIGHT')
