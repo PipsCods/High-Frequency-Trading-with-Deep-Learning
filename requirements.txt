@@ -23,5 +23,9 @@ statsmodels  # For detailed statistical analysis and diagnostics
 pmdarima     # For auto_arima functionality
 arch         # For GARCH volatility models
 
+# --- Parallel Processing ---
+multiprocessing     # For parallel processing of tasks
+pebble              # For parallel processing of time series data
+
 # --- Deep Learning (for Teammate's Transformer) ---
 torch

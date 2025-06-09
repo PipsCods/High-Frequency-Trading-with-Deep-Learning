@@ -3,7 +3,9 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
-from multiprocessing import Pool, cpu_count
+from pebble import ProcessPool
+from concurrent.futures import TimeoutError
+
 from functools import partial
 from tqdm import tqdm
 import warnings
@@ -135,9 +137,30 @@ def run_full_analysis(df: pd.DataFrame, target_col: str, split_datetime: str, pa
     # Create a partial function to pass fixed arguments to the worker
     process_func = partial(process_stock, target_col=target_col, split_datetime=split_datetime)
     
-    with Pool(cpu_count() - 1) as pool:
-        results_list = list(tqdm(pool.imap(process_func, stock_data_iterator), total=total_stocks))
+    with ProcessPool() as pool:
+        future = pool.map(process_func, stock_data_iterator, timeout=20) # Set a timeout for each stock processing
+
+        results_iterator = future.result()
+        results_list = []
+
+        for _ in tqdm(range(total_stocks), desc="Processing Stocks", total=total_stocks):
+            try:
+                result = next(results_iterator)
+                if result is not None:
+                    results_list.append(result)
+            except StopIteration:
+                break
+            except TimeoutError as error:
+                # print("A stock processing task timed out. Skipping this stock.")
+                pass
+            except Exception as e:
+                print(f"An error occurred while processing a stock: {e}")
+                pass
         
+        # results_list = list(tqdm(pool.imap(process_func, stock_data_iterator), total=total_stocks))
+    
+    print(f"\nCompleted processing for {len(results_list)} stocks (skipped or failed stocks are excluded).")
+
     valid_results = [res for res in results_list if res is not None]
     print(f"Completed TS forecasting for {len(valid_results)} stocks.")
 
