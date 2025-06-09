@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from utils.utils import denormalize_targets, filter_top_risky_stocks_static
 from utils.data_preambule import filter_stocks_with_full_coverage, compute_hf_features_multiwindow
-from main import load_raw_data, build_config, encode_categoricals, split_and_normalise, \
+from main import load_raw_data, encode_categoricals, split_and_normalise, \
     build_dataloaders, build_feature_frames, train_and_evaluate, enrich_datetime
 
 from model.model_init import ModelPipeline
@@ -14,22 +14,27 @@ from model.model_init import ModelPipeline
 TOT_STOCK = 100
 BASELINE = "cross-sectional"
 WRAPPER = "time"
-ALPHA = 0.01
+ALPHA = 0.1
 
 RAW_PATH = os.path.join("..", "..", "data", "high_10m.parquet")
-EPOCHS = 30
+EPOCHS = 500
 SEQ_LEN = 12
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 
-CUTOFF_DATE = "2021-12-27"
+CUTOFF_DATE = "2021-12-17"
 
 MODEL_DIM = 128
-NUM_LAYERS = 8
-EXPANSION_FACT = 2
-NUM_HEADS = 16
+NUM_LAYERS = 3
+EXPANSION_FACT = 1
+NUM_HEADS = 8
 DROPOUT = 0
 OUTPUT_DIM = 1
 LEARNING_RATE = 1e-3
+
+
+
+
+
 
 
 
@@ -68,55 +73,8 @@ def build_config(
 
 
 
-def train_and_debugg(pipeline: ModelPipeline, dataloader, device, max_batches = 5, grad_clip = 1.0):
-    pipeline.train_mode()
-    total_loss = 0.0
-    batch_count = 0
-
-    for inputs, targets in dataloader:
-        inputs, targets = inputs.to(device), targets.to(device)
-
-        pipeline.optimizer.zero_grad()
-
-        outputs = pipeline.forward(inputs)             # forward pass
-        loss = pipeline.loss_fn(outputs, targets)      # compute loss
-        loss.backward()                                # backprop
-
-        # gather gradient norms
-        grad_norms = {
-            name: param.grad.data.norm(2).item()
-            for name, param in pipeline.named_parameters()
-            if param.grad is not None
-        }
-        sorted_grads = sorted(grad_norms.items(), key=lambda x: x[1])
-
-        # print smallest & largest three
-        print(f"[Batch {batch_count+1}/{max_batches}] loss = {loss.item():.4f}")
-        print("  ↓  Smallest grads")
-        for name, g in sorted_grads[:3]:
-            print(f"    {name:<40s} {g:.3e}")
-        print("  ↑  Largest grads")
-        for name, g in sorted_grads[-3:]:
-            print(f"    {name:<40s} {g:.3e}")
-
-        # gradient clipping & optimizer step
-        torch.nn.utils.clip_grad_norm_(pipeline.parameters(), max_norm=grad_clip)
-        pipeline.optimizer.step()
-        pipeline.scheduler.step()
-
-        total_loss += loss.item()
-        batch_count += 1
-        if batch_count >= max_batches:
-            break
-
-    avg_loss = total_loss / batch_count
-    print(f"[Debug] avg loss over {batch_count} batches: {avg_loss:.4f}\n")
-    return avg_loss
-
-
-
 if __name__ == "__main__": 
-    df = load_raw_data(RAW_PATH)  
+    df = load_raw_data(RAW_PATH) 
     df["return"] = df["RETURN_SiOVERNIGHT"]
     df.drop(columns=["RETURN_SiOVERNIGHT"], inplace=True)
     df = enrich_datetime(df)
@@ -125,13 +83,14 @@ if __name__ == "__main__":
 
     df = filter_top_risky_stocks_static(
         df,
-        cutoff_date="2021-12-27",
+        cutoff_date=CUTOFF_DATE,
         window=20,
         quantiles=100,
         top_n=TOT_STOCK,
         MOST_VOLATILE_STOCKS=True,
     )
     df.drop(columns=["ALL_EX", "SUM_DELTA", "index", "risk_quantile"], inplace=True)
+    #trys = df[["datetime", "SYMBOL", "return"]]
     (data,
      basic_cat_features,
      cat_features,
@@ -145,7 +104,7 @@ if __name__ == "__main__":
     )
     
     train_df, test_df, _, tgt_mean, tgt_std = split_and_normalise(
-        data, "2021-12-27", cont_features
+        data, CUTOFF_DATE, cont_features
     )
 
     train_loader, test_loader = build_dataloaders(
@@ -180,22 +139,38 @@ if __name__ == "__main__":
     device   = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pipeline = ModelPipeline(cfg).to(device)
 
-    # _, best_loss, history = train_and_evaluate(
-    #     pipeline, train_loader, test_loader, device, EPOCHS
-    # )
+    _, best_loss, history = train_and_evaluate(
+        pipeline, train_loader, test_loader, device, EPOCHS
+    )
 
-    inputs, target = next(iter(train_loader))
-    for step in range(100):
-        pipeline.optimizer.zero_grad()
-        outputs = pipeline.forward(inputs.to(device))
-        loss = pipeline.loss_fn(outputs, target.to(device))
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(pipeline.parameters(), 1.0)
-        pipeline.optimizer.step()
-        pipeline.scheduler.step()
-        print(f"step {step:03d}: {loss.item():.4f}")
+    # inputs, target = next(iter(train_loader))
+    # for step in range(500):
+    #     pipeline.optimizer.zero_grad()
+    #     outputs = pipeline.forward(inputs.to(device))
+    #     loss = pipeline.loss_fn(outputs, target.to(device))
+    #     loss.backward()
+    #     torch.nn.utils.clip_grad_norm_(pipeline.parameters(), 1.0)
+    #     pipeline.optimizer.step()
+    #     #pipeline.scheduler.step()
+    #     print(f"step {step:03d}: {loss.item():.4f}")
 
     
+    # for step in range(500):
+    #     c = 0
+    #     losses = []
+    #     for inputs,target in train_loader:
+    #         pipeline.optimizer.zero_grad()
+    #         outputs = pipeline.forward(inputs.to(device))
+    #         loss = pipeline.loss_fn(outputs, target.to(device))
+    #         loss.backward()
+    #         torch.nn.utils.clip_grad_norm_(pipeline.parameters(), 1.0)
+    #         pipeline.optimizer.step()
+    #         #pipeline.scheduler.step()
+    #         losses.append(loss.item())
+    #         c += 1
+    #         if c > 9: 
+    #             break
+    #     print(f"step {step:03d} average_loss: {np.mean(losses):.4f}")
 
 
 

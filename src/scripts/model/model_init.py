@@ -66,14 +66,23 @@ class ModelPipeline(nn.Module):
         else:
             raise ValueError("Loss function not recognized")
 
-        self.optimizer = torch.optim.AdamW(self.parameters(), lr=config['lr'], weight_decay=1e-2)
+        # self.optimizer = torch.optim.AdamW(self.parameters(), lr=config['lr'], weight_decay=1e-2)
         total_steps = config["total_steps"]
-        self.scheduler = get_linear_schedule_with_warmup(
-                self.optimizer,
-                num_warmup_steps=int(0.1 * total_steps),
-                num_training_steps=total_steps,
-            )
-        
+        # self.scheduler = get_linear_schedule_with_warmup(
+        #         self.optimizer,
+        #         num_warmup_steps=int(0.1 * total_steps),
+        #         num_training_steps=total_steps,
+        #     )
+        #self.optimizer = torch.optim.Adam(self.parameters(), lr=config['lr'])
+        self.optimizer = torch.optim.AdamW(self.parameters(), lr=config['lr'], weight_decay=1e-2)
+        self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            self.optimizer,
+            max_lr=1e-3,
+            total_steps=total_steps,
+            pct_start=0.1,
+            div_factor=10.0,
+            final_div_factor=100.0,
+        )
 
         # Track best model
         self.best_test_loss = float('inf')
@@ -243,9 +252,9 @@ class ModelPipeline(nn.Module):
                 # elif torch.all(param.grad == 0):
                 #     print(f"Zero grad for {name}")
             sorted_grads = sorted(grads_norms.items(), key=lambda x: x[1])
-            print(f"[Batch {batch_count+1}/{len(dataloader)}] loss = {loss.item():.4f}")
-            print(f"Smallest grad : {sorted_grads[0]}")
-            print(f"Largest grad  : {sorted_grads[-1]}")
+            # tqdm.write(f"[Batch {batch_count+1}/{len(dataloader)}] loss = {loss.item():.4f}")
+            # tqdm.write(f"Smallest grad : {sorted_grads[0]}")
+            # tqdm.write(f"Largest grad  : {sorted_grads[-1]}")
             batch_count += 1
 
             torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1)
