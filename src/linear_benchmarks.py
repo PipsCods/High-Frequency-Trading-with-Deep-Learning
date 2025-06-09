@@ -109,9 +109,9 @@ def fit_single_regression(df_stock: pd.DataFrame, target_col: str, feature_cols:
         'residuals': residuals
     }
 
-def process_symbol_regression(symbol: str, df: pd.DataFrame, target_col: str, feature_cols: list, model_type: str, split_datetime: str):
-    """Worker function to run regression for a single symbol. For parallelization."""
-    df_symbol = df[df['SYMBOL'] == symbol]
+def process_symbol_regression(symbol_data: tuple, target_col: str, feature_cols: list, model_type: str, split_datetime: str):
+    """Worker function that receives a chunk of data for a single symbol."""
+    symbol, df_symbol = symbol_data  # Unpack the tuple
     try:
         result = fit_single_regression(df_symbol, target_col, feature_cols, model_type, split_datetime)
         if result:
@@ -126,17 +126,21 @@ def run_regressions_for_all_stocks(df: pd.DataFrame, target_col: str, feature_co
     Orchestrates running regressions for all stocks in parallel for specified model types.
     """
     all_results = {}
-    unique_symbols = df['SYMBOL'].unique()
+    grouped_df = df.groupby('SYMBOL')
+    total_stocks = len(grouped_df)
 
     for model_type in model_types:
-        print(f"\n--- Running {model_type.upper()} regression for {len(unique_symbols)} stocks... ---")
+        print(f"\n--- Running {model_type.upper()} regression for {total_stocks} stocks... ---")
         
+        # This iterator will yield (symbol, sub_dataframe) tuples.
+        stock_data_iterator = ((symbol, group) for symbol, group in grouped_df)
+
         # Set up partial function for multiprocessing
-        process_func = partial(process_symbol_regression, df=df, target_col=target_col, feature_cols=feature_cols, model_type=model_type, split_datetime=split_datetime)
+        process_func = partial(process_symbol_regression, target_col=target_col, feature_cols=feature_cols, model_type=model_type, split_datetime=split_datetime)
 
         # Run in parallel
         with Pool(cpu_count()) as pool:
-            results_list = list(tqdm(pool.imap(process_func, unique_symbols), total=len(unique_symbols)))
+            results_list = list(tqdm(pool.imap(process_func, stock_data_iterator), total=total_stocks))
 
         # Filter out None results (from errors or small data)
         valid_results = [res for res in results_list if res is not None]
@@ -328,8 +332,9 @@ def run_linear_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Pat
             plot_coefficient_distributions(results_df, model_name.upper(), save_path_dir=figures_dir)
 
             # Generate diagnostics for the first 2 stocks
-            for i, row in results_df.head(2).iterrows():
-                plot_diagnostic_for_stock(row, save_path_dir=figures_dir)
+            for result_dict in results_list[:2]:
+                result_dict['model_name'] = model_name.upper()
+                plot_diagnostic_for_stock(pd.Series(result_dict), save_path_dir=figures_dir)
 
     print("--- Linear Benchmarks Pipeline Complete ---")
 

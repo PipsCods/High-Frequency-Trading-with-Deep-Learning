@@ -72,7 +72,7 @@ def filter_trading_returns(df: pd.DataFrame) -> pd.DataFrame:
 
     # TO REMOVE
     # symbol_counts = trading_returns_df['SYMBOL'].value_counts()
-    # top_symbols = symbol_counts.head(150).index.tolist()
+    # top_symbols = symbol_counts.head(250).index.tolist()
     # trading_returns_df = trading_returns_df[trading_returns_df['SYMBOL'].isin(top_symbols)]
 
     # Remove outliers
