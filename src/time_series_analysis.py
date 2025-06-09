@@ -95,13 +95,13 @@ def process_stock(symbol_data: tuple, target_col: str, split_datetime: str):
 
     # --- GARCH Forecasting ---
     try:
-        garch_train_series = train_series * 100
+        garch_train_series = train_series * 1000
         
         garch_model = arch_model(garch_train_series, lags=1, vol='Garch', p=1, q=1, dist='t')
         garch_fit = garch_model.fit(update_freq=0, disp='off')
         
         forecasts = garch_fit.forecast(horizon=n_test, reindex=False)
-        garch_preds = forecasts.mean.iloc[0].values / 100
+        garch_preds = forecasts.mean.iloc[0].values / 1000
 
         garch_params = garch_fit.params.to_dict()
         garch_pvalues = garch_fit.pvalues.to_dict()
