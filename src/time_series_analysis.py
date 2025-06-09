@@ -251,11 +251,31 @@ def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir:
 
     returns_df = filter_trading_returns(load_data(data_path))
 
-    if not returns_df.empty:
-        run_full_analysis(returns_df, TARGET_COL, split_datetime, params_dir, preds_dir)
-        print("Time series models pipeline completed.")
-    else:
-        print("No valid trading returns data found. Skipping time series models pipeline.")
+    if returns_df.empty:
+        print("Halting execution: The initial returns DataFrame is empty after filtering.")
+        return
+
+    # Pre-filter out problematic stocks before the main loop
+    print(f"Original number of stocks: {returns_df['SYMBOL'].nunique()}")
+    
+    # Filter 1: Keep only stocks that have data on both sides of the split date
+    split_dt_obj = pd.to_datetime(split_datetime)
+    stocks_with_test_data = returns_df[returns_df.index >= split_dt_obj]['SYMBOL'].unique()
+    returns_df = returns_df[returns_df['SYMBOL'].isin(stocks_with_test_data)]
+    print(f"Stocks remaining after filtering for test data: {returns_df['SYMBOL'].nunique()}")
+
+    # Filter 2: Keep only stocks with a minimum number of observations
+    returns_df = returns_df.groupby('SYMBOL').filter(lambda x: len(x) > 100)
+    print(f"Stocks remaining after filtering for min observations: {returns_df['SYMBOL'].nunique()}")
+
+    # Filter 3: Keep only stocks with non-zero volatility
+    volatility = returns_df.groupby('SYMBOL')[TARGET_COL].std()
+    stocks_with_vol = volatility[volatility > 1e-8].index # Use a small threshold
+    returns_df = returns_df[returns_df['SYMBOL'].isin(stocks_with_vol)]
+    print(f"Stocks remaining after filtering for non-zero volatility: {returns_df['SYMBOL'].nunique()}")
+
+    run_full_analysis(returns_df, TARGET_COL, split_datetime, params_dir, preds_dir)
+    
     print("--- Time Series Models Training Pipeline Complete ---")
 
 def generate_summary_reports(params_dir: Path, tables_dir: Path, figures_dir: Path):
