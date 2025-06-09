@@ -43,8 +43,8 @@ def augment_features(df: pd.DataFrame, symbol_col: str, return_col: str) -> pd.D
     grouped = df.groupby(symbol_col, group_keys=False)
 
     # Moving average and std (using only current and past data)
-    df['ma_1h'] = grouped[return_col].transform(lambda x: x.rolling(window=window_size, min_periods=1).mean())
-    df['std_1h'] = grouped[return_col].transform(lambda x: x.rolling(window=window_size, min_periods=1).std())
+    #df['ma_1h'] = grouped[return_col].transform(lambda x: x.rolling(window=window_size, min_periods=1).mean())
+    #df['std_1h'] = grouped[return_col].transform(lambda x: x.rolling(window=window_size, min_periods=1).std())
 
     # Non-linear transformations of returns
     df['return_cos'] = np.cos(df[return_col])
@@ -149,7 +149,7 @@ def prepare_hf_data(raw_df, name_of_timestamp_column, name_of_symbol_column):
     # Sort chronologically by symbol
     df = df.sort_values(by=['symbol', df.index.name])
     
-    df= augment_features(df, symbol_col= "symbol", return_col= "return")
+    #df= augment_features(df, symbol_col= "symbol", return_col= "return")
 
     # Categorical features (known structure)
     basic_cat_features = ['symbol', 'day', 'day_name', 'hour', 'minute']

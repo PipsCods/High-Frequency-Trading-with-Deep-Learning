@@ -3,6 +3,7 @@ from transformer.CustomLoss import CustomLoss
 from transformer.TransformerEncoder import TransformerEncoder
 from transformer.PredictionHead import PredictionHead
 from transformer.TemporalSelfAttention import TemporalSelfAttention
+from transformers import get_linear_schedule_with_warmup
 
 import torch
 import torch.nn as nn
@@ -65,7 +66,14 @@ class ModelPipeline(nn.Module):
         else:
             raise ValueError("Loss function not recognized")
 
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=config['lr'])
+        self.optimizer = torch.optim.AdamW(self.parameters(), lr=config['lr'], weight_decay=1e-2)
+        total_steps = config["total_steps"]
+        self.scheduler = get_linear_schedule_with_warmup(
+                self.optimizer,
+                num_warmup_steps=int(0.1 * total_steps),
+                num_training_steps=total_steps,
+            )
+        
 
         # Track best model
         self.best_test_loss = float('inf')
@@ -104,11 +112,13 @@ class ModelPipeline(nn.Module):
         return output
 
 
-    def to(self, device):
-        self.encoder.to(device)
-        if self.wrapper is not None:
-            self.wrapper.to(device)
-        self.predictor.to(device)
+    def to(self, device):  
+        # self.encoder.to(device)
+        # if self.wrapper is not None:
+        #     self.wrapper.to(device)
+        # self.predictor.to(device) 
+        super().to(device)
+        return self
 
     def parameters(self, **kwargs):
         out = list(self.encoder.parameters())
@@ -214,7 +224,7 @@ class ModelPipeline(nn.Module):
     def train_epoch(self, dataloader, device):
         self.train_mode()
         total_loss = 0.0
-        num_batches = 0
+        batch_count = 1
 
         for inputs, targets in tqdm(dataloader, desc="Training"):
             inputs = inputs.to(device)  # inputs shape: [B, T, S, features]
@@ -224,15 +234,26 @@ class ModelPipeline(nn.Module):
             outputs = self.forward(inputs)  # outputs shape: [B, S] or [B, S, 1]
             loss = self.loss_fn(outputs, targets)
             loss.backward()
+            grads_norms = {}
             for name, param in self.named_parameters():
-                if param.grad is None:
-                    print(f"No grad for {name}")
-                elif torch.all(param.grad == 0):
-                    print(f"Zero grad for {name}")
+                if param.grad is not None:
+                    grads_norms[name] = param.grad.data.norm(2).item()
+                # if param.grad is None:
+                #     print(f"No grad for {name}")
+                # elif torch.all(param.grad == 0):
+                #     print(f"Zero grad for {name}")
+            sorted_grads = sorted(grads_norms.items(), key=lambda x: x[1])
+            print(f"[Batch {batch_count+1}/{len(dataloader)}] loss = {loss.item():.4f}")
+            print(f"Smallest grad : {sorted_grads[0]}")
+            print(f"Largest grad  : {sorted_grads[-1]}")
+            batch_count += 1
+
+            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1)
+            
             self.optimizer.step()
 
             total_loss += loss.item()
-            num_batches += 1
+            
 
-        avg_train_loss = total_loss / num_batches
+        avg_train_loss = total_loss / len(dataloader)
         return avg_train_loss
