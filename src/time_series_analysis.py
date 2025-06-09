@@ -12,13 +12,13 @@ import warnings
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from pmdarima import auto_arima
 from arch import arch_model
-# from arch.univariate.base import DataScaleWarning
+from arch.univariate.base import DataScaleWarning
 
 # Import utils
 from src.utils import load_data, filter_trading_returns, data_split
 
 warnings.filterwarnings("ignore", category=FutureWarning, module='sklearn')
-# warnings.filterwarnings("ignore", category=DataScaleWarning)
+warnings.filterwarnings("ignore", category=DataScaleWarning)
 
 def plot_autocorrelation(series: pd.Series, series_name: str, lags: int = 40):
     """
@@ -72,7 +72,7 @@ def process_stock(symbol_data: tuple, target_col: str, split_datetime: str):
     n_test = len(test_series)
     results = {'symbol': symbol} # Ensure symbol is kept for results
 
-    # --- ARIMA Forecasting ---
+    # ARIMA Forecasting
     try:
         arima_model = auto_arima(
             train_series,
@@ -93,7 +93,7 @@ def process_stock(symbol_data: tuple, target_col: str, split_datetime: str):
         results['arima_params'] = None
         results['arima_predictions'] = None
 
-    # --- GARCH Forecasting ---
+    # GARCH Forecasting
     try:
         garch_train_series = train_series * 1000
         
@@ -154,7 +154,7 @@ def run_full_analysis(df: pd.DataFrame, target_col: str, split_datetime: str, pa
         preds_list = [r[f'{model_name}_predictions'] for r in valid_results if r.get(f'{model_name}_predictions') is not None]
         if preds_list:
             preds_df = pd.concat(preds_list).to_frame(name='predicted_return').reset_index()
-            symbol_map = df[['DATETIME', 'SYMBOL']].drop_duplicates().set_index('DATETIME')
+            symbol_map = df.reset_index()[['DATETIME', 'SYMBOL']].drop_duplicates().set_index('DATETIME')
             preds_df = preds_df.join(symbol_map, on='DATETIME')
             preds_df.to_parquet(preds_dir / f"{model_name}_predictions.parquet")
             print(f"{model_name.upper()} predictions saved to {preds_dir}")
