@@ -19,6 +19,7 @@ from src.utils import load_data, filter_trading_returns, data_split
 
 warnings.filterwarnings("ignore", category=FutureWarning, module='sklearn')
 warnings.filterwarnings("ignore", category=DataScaleWarning)
+warnings.filterwarnings("ignore", message="No supported index is available.")
 
 def plot_autocorrelation(series: pd.Series, series_name: str, lags: int = 40):
     """
@@ -76,7 +77,7 @@ def process_stock(symbol_data: tuple, target_col: str, split_datetime: str):
     try:
         arima_model = auto_arima(
             train_series,
-            start_p=1, start_q=1, max_p=3, max_q=3, d=0,
+            start_p=1, start_q=1, max_p=4, max_q=4, d=0,
             seasonal=False, trace=False, error_action='ignore',
             suppress_warnings=True, stepwise=True
         )
@@ -157,7 +158,7 @@ def run_full_analysis(df: pd.DataFrame, target_col: str, split_datetime: str, pa
             symbol_map = df.reset_index()[['DATETIME', 'SYMBOL']].drop_duplicates().set_index('DATETIME')
             preds_df = preds_df.join(symbol_map, on='DATETIME')
             preds_df.to_parquet(preds_dir / f"{model_name}_predictions.parquet")
-            print(f"{model_name.upper()} predictions saved to {preds_dir}")
+            # print(f"{model_name.upper()} predictions saved to {preds_dir}")
 
 
 def generate_outputs(params_dir: Path, tables_dir: Path, figures_dir: Path):
@@ -226,9 +227,9 @@ def generate_outputs(params_dir: Path, tables_dir: Path, figures_dir: Path):
         sns.histplot(significant_garch_df['alpha[1]'], kde=True, ax=axes[0], color='skyblue').set_title('Distribution of ARCH Term (alpha[1])')
         sns.histplot(significant_garch_df['beta[1]'], kde=True, ax=axes[1], color='salmon').set_title('Distribution of GARCH Term (beta[1])')
         plt.tight_layout(rect=[0, 0, 1, 0.95])
-        plt.savefig(figures_dir / "garch_coefficients_distribution.png")
+        plt.savefig(figures_dir / "garch_coefficients_dist.png")
         plt.close()
-        # print(f"Figure 'garch_coefficients_distribution.png' saved.")
+        # print(f"Figure 'garch_coefficients_dist.png' saved.")
 
     except (FileNotFoundError, KeyError) as e:
         print(f"Skipping GARCH reports. Error: {e}. Check if garch_results.parquet exists.")
