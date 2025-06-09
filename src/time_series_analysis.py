@@ -165,7 +165,7 @@ def run_full_analysis(df: pd.DataFrame, target_col: str, split_datetime: str, pa
             # print(f"{model_name.upper()} predictions saved to {preds_dir}")
 
 
-def generate_outputs(params_dir: Path, tables_dir: Path, figures_dir: Path):
+def generate_outputs(params_dir: Path, figures_dir: Path, tables_dir: Path):
     """
     Loads pre-computed analysis results and generates summary tables and figures.
     """    
@@ -278,12 +278,12 @@ def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir:
     
     print("--- Time Series Models Training Pipeline Complete ---")
 
-def generate_summary_reports(params_dir: Path, tables_dir: Path, figures_dir: Path):
+def generate_summary_reports(params_dir: Path, figures_dir: Path, tables_dir: Path):
     """
     Generates summary reports from the saved parameters and predictions.
     """
     print("--- Generating Summary Tables and Figures ---")
-    generate_outputs(params_dir, tables_dir, figures_dir)
+    generate_outputs(params_dir, figures_dir, tables_dir)
 
 
 # --- Main Execution Block ---

@@ -46,7 +46,7 @@ def main():
     # --- Execute the selected stage(s) ---
     if args.data_analysis:
         print("\n--- STAGE: DATA ANALYSIS & EDA ---")
-        run_data_analysis_pipeline(PROCESSED_DATA_PATH, FIGURES_DIR / "data_analysis", TABLES_DIR)
+        run_data_analysis_pipeline(PROCESSED_DATA_PATH, FIGURES_DIR / "data_analysis", TABLES_DIR / "data_analysis")
 
     if args.train_benchmarks:
         print("\n--- STAGE: BENCHMARK MODEL TRAINING ---")
@@ -55,7 +55,7 @@ def main():
 
     if args.evaluate_benchmarks:
         print("\n--- STAGE: BENCHMARK MODEL EVALUATION ---")
-        generate_summary_reports(PARAMS_DIR, TABLES_DIR, FIGURES_DIR / "time_series")
+        generate_summary_reports(PARAMS_DIR, FIGURES_DIR / "time_series", TABLES_DIR / "time_series")
 
     if args.train:
         print("\n--- STAGE: MODEL TRAINING ---")
