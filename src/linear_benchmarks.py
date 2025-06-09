@@ -19,7 +19,7 @@ import statsmodels.api as sm
 from statsmodels.graphics.tsaplots import plot_acf
 
 # Helper imports
-from src.utils import load_data, filter_trading_returns
+from src.utils import load_data, filter_trading_returns, data_split
 
 warnings.filterwarnings("ignore", category=FutureWarning, module='sklearn')
 
@@ -51,16 +51,12 @@ def create_lag_features(df: pd.DataFrame, lags: int, target_col: str, min_daily_
     return df_filtered
 
 
-def fit_single_regression(df_stock: pd.DataFrame, target_col: str, feature_cols: list, model_type: str = 'linear', alpha: float = 0.001, train_split_ratio: float = 0.8):
+def fit_single_regression(df_stock: pd.DataFrame, target_col: str, feature_cols: list, model_type: str = 'linear', alpha: float = 0.01, split_datetime: str = '2021-12-27 00:00:00'):
     """Fits a single regression model for one stock's data and returns results."""
     
-    # Split data chronologically
-    split_point = int(len(df_stock) * train_split_ratio)
-    train_df = df_stock.iloc[:split_point]
-    test_df = df_stock.iloc[split_point:]
-
-    if len(train_df) < 2 or len(test_df) < 2:
-        return None # Not enough data to train or test
+    train_df, test_df = data_split(df_stock, split_datetime)
+    if train_df is None or test_df is None:
+        return None
 
     X_train, y_train = train_df[feature_cols], train_df[target_col]
     X_test, y_test = test_df[feature_cols], test_df[target_col]
