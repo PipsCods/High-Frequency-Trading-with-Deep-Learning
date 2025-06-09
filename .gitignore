@@ -138,6 +138,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Jupyer Notebook
+*.ipynb_checkpoints/
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -172,3 +175,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 .idea
+
+# VS Code settings
+.vscode/
+
+# macOS
+.DS_Store
