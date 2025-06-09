@@ -30,9 +30,9 @@ def main():
     parser.add_argument("--train-benchmarks", action="store_true", help="Run all benchmark model training pipelines.")
     parser.add_argument("--evaluate-benchmarks", action="store_true", help="Generate reports for benchmark models.")
 
-    # parser.add_argument("--train", action="store_true", help="Run the model training pipeline.")
-    # parser.add_argument("--evaluate", action="store_true", help="Evaluate the trained model's performance.")
-    # parser.add_argument("--strategy", action="store_true", help="Run a trading strategy using the model.")
+    parser.add_argument("--train", action="store_true", help="Run the model training pipeline.")
+    parser.add_argument("--evaluate", action="store_true", help="Evaluate the trained model's performance.")
+    parser.add_argument("--strategy", action="store_true", help="Run a trading strategy using the model.")
 
     # --- Add arguments for file paths and hyperparameters ---
     # parser.add_argument("--model-path", type=str, default="results/models/best_model.pth", help="Path to save/load the model.")
@@ -57,20 +57,23 @@ def main():
         print("\n--- STAGE: BENCHMARK MODEL EVALUATION ---")
         generate_summary_reports(PARAMS_DIR, TABLES_DIR, FIGURES_DIR / "time_series")
 
-    # if args.train:
-    #     print("\n--- STAGE: MODEL TRAINING ---")
+    if args.train:
+        print("\n--- STAGE: MODEL TRAINING ---")
+        pass
     #     train_model(processed_path=args.processed_data_path, model_path=args.model_path, epochs=args.epochs)
 
-    # if args.evaluate:
-    #     print("\n--- STAGE: MODEL EVALUATION ---")
+    if args.evaluate:
+        print("\n--- STAGE: MODEL EVALUATION ---")
+        pass
     #     evaluate_model(processed_path=args.processed_data_path, model_path=args.model_path)
 
-    # if args.strategy:
-    #     print("\n--- STAGE: TRADING STRATEGY ---")
+    if args.strategy:
+        print("\n--- STAGE: TRADING STRATEGY ---")
+        pass
     #     run_strategy(processed_path=args.processed_data_path, model_path=args.model_path)
 
     # If no flags were provided, show help message.
-    if not any([args.process_data, args.train, args.evaluate, args.strategy]):
+    if not any([args.data_analysis, args.train_benchmarks, args.evaluate_benchmarks, args.train, args.evaluate, args.strategy]):
         print("No stage selected. Please specify a stage to run (e.g., --train). Use --help for more info.")
         parser.print_help()
 
