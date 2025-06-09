@@ -240,7 +240,7 @@ def generate_outputs(params_dir: Path, tables_dir: Path, figures_dir: Path):
 
 
 # --- Main Pipeline Function (for import) ---
-def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Path):
+def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Path, split_datetime: str):
     """
     Runs the full time series analysis pipeline including ARIMA and GARCH models.
     """
@@ -248,12 +248,11 @@ def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir:
 
     # Constants
     TARGET_COL = 'RETURN_NoOVERNIGHT'
-    SPLIT_DATETIME = '2021-12-27 00:00:00'
 
     returns_df = filter_trading_returns(load_data(data_path))
 
     if not returns_df.empty:
-        run_full_analysis(returns_df, TARGET_COL, SPLIT_DATETIME, params_dir, preds_dir)
+        run_full_analysis(returns_df, TARGET_COL, split_datetime, params_dir, preds_dir)
         print("Time series models pipeline completed.")
     else:
         print("No valid trading returns data found. Skipping time series models pipeline.")

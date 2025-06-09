@@ -22,6 +22,9 @@ def main():
     PARAMS_DIR = RESULTS_DIR / "parameters"
     PREDS_DIR = RESULTS_DIR / "predictions"
 
+    # Split date configuration
+    DEFAULT_SPLIT_DATETIME = '2021-12-27 00:00:00'
+
     # --- Add flags for each pipeline stage ---
     parser.add_argument("--data-analysis", action="store_true", help="Run the data exploration and analysis pipeline.")
     parser.add_argument("--train-benchmarks", action="store_true", help="Run all benchmark model training pipelines.")
@@ -34,6 +37,9 @@ def main():
     # --- Add arguments for file paths and hyperparameters ---
     # parser.add_argument("--model-path", type=str, default="results/models/best_model.pth", help="Path to save/load the model.")
     # parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs.")
+
+    # Add split date as a configurable command-line argument
+    parser.add_argument("--split-date", type=str, default=DEFAULT_SPLIT_DATETIME, help=f"The train/test split date (YYYY-MM-DD HH:MM:SS). Default: {DEFAULT_SPLIT_DATETIME}")
     
     args = parser.parse_args()
 
@@ -44,8 +50,8 @@ def main():
 
     if args.train_benchmarks:
         print("\n--- STAGE: BENCHMARK MODEL TRAINING ---")
-        run_linear_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR, FIGURES_DIR / "linear_models")
-        run_timeseries_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR)
+        run_linear_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR, FIGURES_DIR / "linear_models", split_datetime=args.split_date)
+        run_timeseries_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR, split_datetime=args.split_date)
 
     if args.evaluate_benchmarks:
         print("\n--- STAGE: BENCHMARK MODEL EVALUATION ---")

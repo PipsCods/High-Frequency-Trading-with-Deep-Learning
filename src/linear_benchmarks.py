@@ -54,7 +54,7 @@ def create_lag_features(df: pd.DataFrame, lags: int, target_col: str, min_daily_
     return df_filtered
 
 
-def fit_single_regression(df_stock: pd.DataFrame, target_col: str, feature_cols: list, model_type: str = 'linear', alpha: float = 0.01, split_datetime: str = '2021-12-27 00:00:00'):
+def fit_single_regression(df_stock: pd.DataFrame, target_col: str, feature_cols: list, model_type: str, split_datetime: str, alpha: float = 0.01):
     """Fits a single regression model for one stock's data and returns results."""
     
     train_df, test_df = data_split(df_stock, split_datetime)
@@ -109,11 +109,11 @@ def fit_single_regression(df_stock: pd.DataFrame, target_col: str, feature_cols:
         'residuals': residuals
     }
 
-def process_symbol_regression(symbol: str, df: pd.DataFrame, target_col: str, feature_cols: list, model_type: str):
+def process_symbol_regression(symbol: str, df: pd.DataFrame, target_col: str, feature_cols: list, model_type: str, split_datetime: str):
     """Worker function to run regression for a single symbol. For parallelization."""
     df_symbol = df[df['SYMBOL'] == symbol]
     try:
-        result = fit_single_regression(df_symbol, target_col, feature_cols, model_type)
+        result = fit_single_regression(df_symbol, target_col, feature_cols, model_type, split_datetime)
         if result:
             result['symbol'] = symbol
             return result
@@ -121,7 +121,7 @@ def process_symbol_regression(symbol: str, df: pd.DataFrame, target_col: str, fe
         return None
     return None
 
-def run_regressions_for_all_stocks(df: pd.DataFrame, target_col: str, feature_cols: list, model_types: list):
+def run_regressions_for_all_stocks(df: pd.DataFrame, target_col: str, feature_cols: list, model_types: list, split_datetime: str):
     """
     Orchestrates running regressions for all stocks in parallel for specified model types.
     """
@@ -132,7 +132,7 @@ def run_regressions_for_all_stocks(df: pd.DataFrame, target_col: str, feature_co
         print(f"\n--- Running {model_type.upper()} regression for {len(unique_symbols)} stocks... ---")
         
         # Set up partial function for multiprocessing
-        process_func = partial(process_symbol_regression, df=df, target_col=target_col, feature_cols=feature_cols, model_type=model_type)
+        process_func = partial(process_symbol_regression, df=df, target_col=target_col, feature_cols=feature_cols, model_type=model_type, split_datetime=split_datetime)
 
         # Run in parallel
         with Pool(cpu_count()) as pool:
@@ -294,7 +294,7 @@ def run_statistical_summary_for_stock(df_stock: pd.DataFrame, target_col: str, f
 
 
 # --- Main Pipeline Function (for import) ---
-def run_linear_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Path, figures_dir: Path):
+def run_linear_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Path, figures_dir: Path, split_datetime: str):
     """
     Main function to run the linear regression models pipeline.
     Loads data, creates lag features, runs regressions, and generates reports.
@@ -315,7 +315,7 @@ def run_linear_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Pat
     feature_cols = [f'{TARGET_COL}_lag_{i}' for i in range(1, NUM_LAGS + 1)]
 
     # Run regressions for all stocks
-    all_results = run_regressions_for_all_stocks(df_with_features, TARGET_COL, feature_cols, MODELS_TO_RUN)
+    all_results = run_regressions_for_all_stocks(df_with_features, TARGET_COL, feature_cols, MODELS_TO_RUN, split_datetime)
 
     # Save model outputs and generate plots
     for model_name, results_df in all_results.items():
@@ -342,12 +342,16 @@ if __name__ == "__main__":
     PARAMS_DIR = RESULTS_DIR / "parameters"
     PREDS_DIR = RESULTS_DIR / "predictions"
 
+    # Default split date for train/test
+    DEFAULT_SPLIT_DATETIME = '2021-12-27 00:00:00'
+
     # Call the main pipeline function
     run_linear_models_pipeline(
         data_path=DATA_PATH,
         params_dir=PARAMS_DIR,
         preds_dir=PREDS_DIR,
-        figures_dir=FIGURES_DIR
+        figures_dir=FIGURES_DIR,
+        split_datetime=DEFAULT_SPLIT_DATETIME
     )
 
     # EXAMPLE_STOCK = 'TWLO'
