@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import torch
+import random
 from torch.utils.data import TensorDataset, DataLoader, Dataset
 
 # =================
@@ -65,6 +66,16 @@ def filter_top_risky_stocks_static(df, cutoff_date, window=20, quantiles=10, top
     )
 
     return df_filtered.reset_index(drop=False)  # Keep timestamp as a column
+
+def volatility_filter2(df: pd.DataFrame, cutoff_date, top_n = 100): 
+    df = df.sort_values(['SYMBOL', 'datetime']).copy()
+
+    tmp = df[df['datetime'] <= cutoff_date].copy()
+
+    volatility = tmp.groupby("SYMBOL")["return"].std()
+    top_symbols = volatility.nlargest(top_n).index
+    return df[df["SYMBOL"].isin(top_symbols)]
+
 
 
 

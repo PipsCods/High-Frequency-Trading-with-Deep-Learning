@@ -4,7 +4,7 @@ import numpy as np
 import torch 
 import matplotlib.pyplot as plt
 
-from utils.utils import denormalize_targets, filter_top_risky_stocks_static
+from utils.utils import denormalize_targets, filter_top_risky_stocks_static, volatility_filter2
 from utils.data_preambule import filter_stocks_with_full_coverage, compute_hf_features_multiwindow
 from main import load_raw_data, encode_categoricals, split_and_normalise, \
     build_dataloaders, build_feature_frames, train_and_evaluate, enrich_datetime
@@ -81,14 +81,17 @@ if __name__ == "__main__":
     df = filter_stocks_with_full_coverage(df, "datetime", "SYMBOL")
     df = compute_hf_features_multiwindow(df, "return")
 
-    df = filter_top_risky_stocks_static(
-        df,
-        cutoff_date=CUTOFF_DATE,
-        window=20,
-        quantiles=100,
-        top_n=TOT_STOCK,
-        MOST_VOLATILE_STOCKS=True,
-    )
+    # df2= filter_top_risky_stocks_static(
+    #     df,
+    #     cutoff_date=CUTOFF_DATE,
+    #     window=20,
+    #     quantiles=100,
+    #     top_n=TOT_STOCK,
+    #     MOST_VOLATILE_STOCKS=True,
+    # )
+    df = volatility_filter2(df, cutoff_date= CUTOFF_DATE, top_n= TOT_STOCK)
+
+    breakpoint()
     df.drop(columns=["ALL_EX", "SUM_DELTA", "index", "risk_quantile"], inplace=True)
     #trys = df[["datetime", "SYMBOL", "return"]]
     (data,

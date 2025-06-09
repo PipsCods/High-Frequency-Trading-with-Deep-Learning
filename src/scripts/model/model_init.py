@@ -260,6 +260,7 @@ class ModelPipeline(nn.Module):
             torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1)
             
             self.optimizer.step()
+            self.scheduler.step()
 
             total_loss += loss.item()
             
