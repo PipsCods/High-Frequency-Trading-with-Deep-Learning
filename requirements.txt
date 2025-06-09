@@ -1,0 +1,27 @@
+# =================================================================
+# Required Python libraries for the project
+# =================================================================
+# To generate this file with exact versions, run:
+# pip freeze > requirements.txt
+
+# --- Core Data Science & Plotting ---
+pandas
+numpy
+matplotlib
+seaborn
+tqdm         # For progress bars
+
+# --- File Formats ---
+pyarrow      # For reading/writing Parquet files
+jinja2       # Required by pandas for styling LaTeX exports
+
+# --- Machine Learning & Statistical Models ---
+scikit-learn # For LinearRegression, Ridge, Lasso, and metrics
+statsmodels  # For detailed statistical analysis and diagnostics
+
+# --- Time Series Specific Libraries ---
+pmdarima     # For auto_arima functionality
+arch         # For GARCH volatility models
+
+# --- Deep Learning (for Teammate's Transformer) ---
+torch
