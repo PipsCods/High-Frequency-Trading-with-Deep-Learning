@@ -242,7 +242,7 @@ if __name__ == '__main__':
     RESULTS_DIR = BASE_DIR / "results"
     PARAMS_DIR = RESULTS_DIR / "parameters"
     PREDS_DIR = RESULTS_DIR / "predictions"
-    TABLES_DIR = RESULTS_DIR / "tables"
+    TABLES_DIR = RESULTS_DIR / "tables" / "time_series"
     FIGURES_DIR = RESULTS_DIR / "figures" / "time_series"
     
     TARGET_COL = 'RETURN_NoOVERNIGHT'

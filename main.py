@@ -1,6 +1,6 @@
 # main.py
 import argparse
-from src.data_processing import process_data
+from src.data_analysis import process_data
 # from src.training import train_model
 # from src.evaluation import evaluate_model
 # from src.strategy import run_strategy

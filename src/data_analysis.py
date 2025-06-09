@@ -1,5 +1,6 @@
 # Import necessary libraries
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
@@ -86,7 +87,7 @@ def calculate_aggregated_stats(stats_df: pd.DataFrame) -> pd.DataFrame:
     print("Aggregation complete.")
     return aggregated_stats
 
-def run_descriptive_analysis(df: pd.DataFrame):
+def run_descriptive_analysis(returns_df: pd.DataFrame, tables_dir: Path = None):
     """
     Main function to run the entire descriptive analysis pipeline.
 
@@ -108,7 +109,20 @@ def run_descriptive_analysis(df: pd.DataFrame):
     print(aggregated_df)
     print("-" * 55)
 
-def compute_intraday_patterns(returns_df: pd.DataFrame, save_path: str = None):
+    if tables_dir:
+        tables_dir.mkdir(parents=True, exist_ok=True)
+        output_path = tables_dir / "aggregated_descriptive_stats.tex"
+        
+        aggregated_df.to_latex(
+            output_path,
+            float_format="%.4f",  # Format numbers to 4 decimal places
+            caption="Aggregated Descriptive Statistics of 10-Minute Returns Across All Stocks.",
+            label="tab:agg_stats",
+            position="ht"
+        )
+
+
+def compute_intraday_patterns(returns_df: pd.DataFrame, figures_dir: str = None):
     """
     Calculates and plots the aggregated intraday return and volatility patterns.
 
@@ -155,8 +169,8 @@ def compute_intraday_patterns(returns_df: pd.DataFrame, save_path: str = None):
     
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     
-    if save_path:
-        output_path = Path(f"{save_path}/intraday_patterns.png")
+    if figures_dir:
+        output_path = Path(f"{figures_dir}/intraday_patterns.png")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(output_path)
         # print(f"Figure saved to: {output_path}")
@@ -165,38 +179,64 @@ def compute_intraday_patterns(returns_df: pd.DataFrame, save_path: str = None):
 
     plt.close(fig)
 
-def plot_correlation_heatmap(returns_df: pd.DataFrame, save_path: str = None):
+def plot_correlation_distribution(returns_df: pd.DataFrame, figures_dir: Path = None):
+    """
+    Calculates and plots the distribution of correlation coefficients between all stocks.
+    """
+    
+    # Pivot the data to have stocks as columns
     pivot_df = returns_df.pivot(columns='SYMBOL', values='RETURN_NoOVERNIGHT')
+    
+    # Calculate the correlation matrix
     corr_matrix = pivot_df.corr()
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(corr_matrix, cmap='coolwarm', center=0)
-    plt.title('Correlation Matrix of Stock Returns')
-    if save_path:
-        output_path = Path(f"{save_path}/correlation_heatmap.png")
+    
+    # Get the upper triangle of the matrix to avoid duplicate values and the diagonal
+    # This creates a Series of all unique correlation pairs
+    upper_triangle = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    corr_values_series = upper_triangle.stack()
+    corr_values_series.index.names = ['Stock_1', 'Stock_2']
+    corr_values_df = corr_values_series.reset_index()
+    corr_values_df.columns = ['Row','Column','Correlation']
+    
+    # Plot the distribution
+    plt.figure(figsize=(12, 7))
+    sns.histplot(data=corr_values_df, x='Correlation', bins=100, kde=True)
+    plt.title('Distribution of Pairwise Stock Correlations', fontsize=16)
+    plt.xlabel('Correlation Coefficient')
+    plt.ylabel('Frequency (Number of Pairs)')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    avg_corr = corr_values_df['Correlation'].mean()
+    plt.axvline(avg_corr, color='red', linestyle='--', label=f'Average Correlation: {avg_corr:.2f}')
+    plt.legend()
+    
+    if figures_dir:
+        output_path = figures_dir / "correlation_distribution.png"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(output_path)
-        # print(f"Figure saved to: {output_path}")
-    plt.show()
+    
+    plt.close()
 
 # --- Main execution block ---
 if __name__ == '__main__':
     
     BASE_DIR = Path.cwd()
-    DATA_PATH = ".." / BASE_DIR / "data" / "processed" / "high_10m.parquet"
-    FIGURE_PATH_DIR = ".." / BASE_DIR / "results" / "figures"
+    DATA_PATH = BASE_DIR / "data" / "processed" / "high_10m.parquet"
+    RESULTS_DIR = BASE_DIR / "results"
+    TABLES_DIR = RESULTS_DIR / "tables" / "data_analysis"
+    FIGURES_DIR = RESULTS_DIR / "figures" / "data_analysis"
 
     # 1. Load the raw data
     raw_df = load_data(DATA_PATH)
 
     # 2. Filter the data and create the DatetimeIndex. 
-    # The result is stored back into a variable in the main scope.
     returns_df = filter_trading_returns(raw_df)
 
     # 3. Run the analysis
-    run_descriptive_analysis(returns_df)
+    run_descriptive_analysis(returns_df, TABLES_DIR)
 
     # 4. Plot the intraday patterns
-    compute_intraday_patterns(returns_df, FIGURE_PATH_DIR)
+    compute_intraday_patterns(returns_df, FIGURES_DIR)
 
     # 5. Plot the correlation heatmap
-    # plot_correlation_heatmap(returns_df, FIGURE_PATH_DIR)
+    plot_correlation_distribution(returns_df, FIGURES_DIR)
