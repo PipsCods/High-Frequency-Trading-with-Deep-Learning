@@ -15,7 +15,7 @@ for j in ['100_cross-sectional_None_0.01_prediction',
           '100_time_None_0.01_prediction',
           '100_time_None_0.5_prediction',
           '100_time_None_1_prediction']:
-    data=pd.read_csv(f'/Users/emanueledurante/Desktop/LGMB/lausanne/epfl/MLfinance/High-Frequency-Trading-with-Deep-Learning/data/predictions_transformers/{j}.csv')
+    data=pd.read_csv(f'/Users/emanueledurante/Desktop/LGMB/lausanne/epfl/MLfinance/High-Frequency-Trading-with-Deep-Learning/data/predictions_transformers/{j} 2.csv')
     pred_df = data.pivot(index="index", columns="stock", values="pred")
     actual_df = data.pivot(index="index", columns="stock", values="actual")
     for i,transaction_cost in enumerate([0, 0.0001,0.0005,0.001]):
