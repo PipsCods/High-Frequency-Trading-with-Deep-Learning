@@ -140,6 +140,4 @@ def cleandata(pred_df,actual_dataset):
     pred_df.fillna(0)
     actual_df = actual_df.loc[actual_df.index.isin(pred_df.index)]
     actual_df = actual_df.loc[pred_df.index]
-    actual_df=actual_df.iloc[:,:1000]
-    pred_df=pred_df.iloc[:,:1000]
     return pred_df,actual_df

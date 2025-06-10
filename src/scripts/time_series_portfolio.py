@@ -12,6 +12,8 @@ for name in names:
     #FUNCTIONS
     returns_strategy=dict()
     pred_df,actual_df=cleandata(pred_df,actual_dataset)
+    actual_df=actual_df.iloc[:,:1000]
+    pred_df=pred_df.iloc[:,:1000]
     #PLOTS
     for i,transaction_cost in enumerate([0, 0.0001,0.0005,0.001]):
             

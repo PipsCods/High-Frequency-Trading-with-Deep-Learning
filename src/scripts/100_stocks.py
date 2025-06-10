@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from helper_portfolio_management import first_weights_given_returns,strategy,model_evaluation,cleandata
+from helper_portfolio_management import first_weights_given_returns,strategy,model_evaluation
 returns_strategy=dict()
 for j in ['100_cross-sectional_None_0.01_prediction',
           '100_cross-sectional_None_0.5_prediction',
