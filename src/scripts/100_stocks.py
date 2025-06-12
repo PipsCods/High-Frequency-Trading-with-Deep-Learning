@@ -28,6 +28,7 @@ for j in ['100_cross-sectional_None_0.01_prediction',
     plt.plot(returns_strategy[1].cumsum(),label='1 basis point')
     plt.plot(returns_strategy[2].cumsum(),label='5 basis point')
     plt.plot(returns_strategy[3].cumsum(),label='10 basis point')
+    plt.plot(actual_df.mean(axis=1).cumsum(),label='market',linestyle='--')
     plt.xlabel('Time step')
     plt.legend()
     plt.ylabel('Cumulative Return')
