@@ -1,0 +1,29 @@
+END_DATE = "2021-12-10"
+DATE_SPLIT = "2021-12-17"
+LAGS = 18
+BATCH_SIZE = 16
+NUM_EPOCHS = 200
+MOST_VOLATILE_STOCKS = True
+top 200, 100 quantiles
+{
+        "basic_embed_dims": basic_embed_dims,
+        "embed_dims": embed_dims,
+        "vocab_sizes_basic": vocab_sizes_basic,
+        "vocab_sizes": vocab_sizes_other,
+        "num_cont_features": len(cont_positions),
+        "d_model": 128,
+        "seq_len": lags,
+        "num_layers": 8,
+        "expansion_factor": 2,
+        "n_heads": 16,
+        "dropout": 0.05,
+        "output_dim": 1,
+        "lr": 1e-7,
+        "cat_feat_positions": cat_positions,
+        "cont_feat_positions": cont_positions,
+        "wrapper": 'time',
+        "loss_method": "custom", #mse or custom or huber
+        "initial_attention": "cross-sectional",
+    }
+
+Loss = 0.05
