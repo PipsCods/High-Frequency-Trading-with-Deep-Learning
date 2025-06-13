@@ -2,18 +2,20 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from helper_portfolio_management import first_weights_given_returns,strategy,model_evaluation,cleandata
-
-names=['ridge','linear','garch','lasso','arima']
+data_transformer=pd.read_csv('/Users/emanueledurante/Desktop/LGMB/lausanne/epfl/MLfinance/High-Frequency-Trading-with-Deep-Learning/data/predictions_transformers/100_time_cross-sectional_1_prediction 2.csv')
+data_transformer = data_transformer.pivot(index="index", columns="stock", values="actual")
+stocks=data_transformer.columns
+names=['ridge','linear','lasso','arima']
 for name in names:
 #DATA UPLOADING
     data=pd.read_parquet(f'/Users/emanueledurante/Desktop/predictions/{name}_predictions.parquet')
     pred_df = data.pivot_table(index="DATETIME", columns="SYMBOL", values="predicted_return",aggfunc="mean")
-    actual_dataset=pd.read_parquet(f'/Users/emanueledurante/Desktop/predictions/{names}.csv')
+    actual_dataset=pd.read_parquet('/Users/emanueledurante/Desktop/LGMB/lausanne/epfl/MLfinance/High-Frequency-Trading-with-Deep-Learning/data/high_10m.parquet')
     #INITIALIZING FUNCTIONS
     returns_strategy=dict()
     pred_df,actual_df=cleandata(pred_df,actual_dataset)
-    actual_df=actual_df.iloc[:,:1000]
-    pred_df=pred_df.iloc[:,:1000]
+    actual_df=actual_df[stocks]
+    pred_df=pred_df[stocks]
     #RUNNING ANALYSIS AND PLOTS
     for i,transaction_cost in enumerate([0, 0.0001,0.0005,0.001]):
             
