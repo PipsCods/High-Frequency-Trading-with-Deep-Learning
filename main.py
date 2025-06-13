@@ -51,7 +51,7 @@ def main():
     if args.train_benchmarks:
         print("\n--- STAGE: BENCHMARK MODEL TRAINING ---")
         run_linear_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR, FIGURES_DIR / "linear_models", split_datetime=args.split_date)
-        run_timeseries_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR, split_datetime=args.split_date)
+        run_timeseries_models_pipeline(PROCESSED_DATA_PATH, PARAMS_DIR, PREDS_DIR, FIGURES_DIR / "time_series", split_datetime=args.split_date)
 
     if args.evaluate_benchmarks:
         print("\n--- STAGE: BENCHMARK MODEL EVALUATION ---")
