@@ -1,5 +1,6 @@
 # Package imports
 import pandas as pd
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -16,7 +17,6 @@ from pmdarima import auto_arima
 from arch import arch_model
 from arch.univariate.base import DataScaleWarning
 
-# Import utils
 # Utils imports
 try:
     from .utils import load_data, filter_trading_returns, data_split
@@ -27,26 +27,19 @@ warnings.filterwarnings("ignore", category=FutureWarning, module='sklearn')
 warnings.filterwarnings("ignore", category=DataScaleWarning)
 warnings.filterwarnings("ignore", message="No supported index is available.")
 
-def plot_autocorrelation(series: pd.Series, series_name: str, lags: int = 40):
+def plot_autocorrelation(series: pd.Series, series_name: str, lags: int, save_path: Path):
     """
-    Plots the ACF and PACF for a given time series to identify potential model orders.
-
-    Args:
-        series: The time series of returns for a single stock.
-        series_name: The name/symbol of the stock for titles.
-        lags: The number of lags to display on the plots.
+    Plots the ACF and PACF for a given time series and saves the figure.
     """
     fig, axes = plt.subplots(2, 1, figsize=(14, 8))
     fig.suptitle(f'Autocorrelation Analysis for {series_name}', fontsize=16)
 
-    # Plot ACF
     plot_acf(series, lags=lags, ax=axes[0])
     axes[0].set_title('Autocorrelation Function (ACF)')
     axes[0].set_xlabel('Lag')
     axes[0].set_ylabel('ACF')
     axes[0].grid(True)
 
-    # Plot PACF
     plot_pacf(series, lags=lags, ax=axes[1])
     axes[1].set_title('Partial Autocorrelation Function (PACF)')
     axes[1].set_xlabel('Lag')
@@ -54,7 +47,9 @@ def plot_autocorrelation(series: pd.Series, series_name: str, lags: int = 40):
     axes[1].grid(True)
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.show()
+    plt.savefig(save_path)
+    plt.close()
+    # print(f"Autocorrelation plot saved to: {save_path}")
 
 
 def process_stock(symbol_data: tuple, target_col: str, split_datetime: str):
@@ -81,40 +76,55 @@ def process_stock(symbol_data: tuple, target_col: str, split_datetime: str):
 
     # ARIMA Forecasting
     try:
+        arima_train_series = train_series * 100  # Scale to avoid numerical issues with ARIMA
+
         arima_model = auto_arima(
-            train_series,
-            start_p=1, start_q=1, max_p=4, max_q=4, d=0,
-            seasonal=False, trace=False, error_action='ignore',
-            suppress_warnings=True, stepwise=True
+            arima_train_series.values,
+            start_p=1, start_q=1, max_p=3, max_q=3, d=0,
+            seasonal=False, trace=False, 
+            error_action='ignore',
+            suppress_warnings=True, 
+            stepwise=True
         )
+
+        param_names = arima_model.arima_res_.param_names
+        param_values = arima_model.params()
+        params_as_dict = dict(zip(param_names, param_values))
+        
         # Forecast for the length of the test set
-        arima_preds = arima_model.predict(n_periods=n_test)
         results['arima_params'] = {
             'order': arima_model.order,
-            'params': arima_model.params().to_dict(),
+            'params': params_as_dict,
             'aic': arima_model.aic()
         }
-        results['arima_predictions'] = pd.Series(arima_preds, index=test_series.index)
+
+        arima_forecast = arima_model.predict(n_periods=n_test)
+        arima_preds = arima_forecast / 100  # Scale back to original units
+
+        results['arima_predictions'] = pd.Series(arima_preds, index=test_series.index, name=symbol)
+
     except Exception as e:
-        # print(f"ARIMA failed for {symbol}: {e}")
+        print(f"ARIMA failed for {symbol}: {e}")
         results['arima_params'] = None
         results['arima_predictions'] = None
 
     # GARCH Forecasting
     try:
-        garch_train_series = train_series * 1000
+        garch_train_series = train_series * 100
         
-        garch_model = arch_model(garch_train_series, lags=1, vol='Garch', p=1, q=1, dist='normal')
+        garch_model = arch_model(garch_train_series, lags=1, vol='Garch', p=1, o=1, q=1, dist='studentst')
         garch_fit = garch_model.fit(update_freq=0, disp='off')
         
         forecasts = garch_fit.forecast(horizon=n_test, reindex=False)
-        garch_preds = forecasts.mean.iloc[0].values / 1000
+        
+        garch_variance_forecast = forecasts.variance.iloc[0].values
+        garch_preds = np.sqrt(garch_variance_forecast) / 100
 
         garch_params = garch_fit.params.to_dict()
         garch_pvalues = garch_fit.pvalues.to_dict()
         
         results['garch_results'] = {**garch_params, **{f'{k}_pval': v for k, v in garch_pvalues.items()}}
-        results['garch_predictions'] = pd.Series(garch_preds, index=test_series.index)
+        results['garch_predictions'] = pd.Series(garch_preds, index=test_series.index, name=symbol)
     except Exception as e:
         # print(f"GARCH failed for {symbol}: {e}")
         results['garch_results'] = None
@@ -129,43 +139,42 @@ def run_full_analysis(df: pd.DataFrame, target_col: str, split_datetime: str, pa
     Data is pre-grouped by symbol for efficiency.
     """
     # Group the DataFrame by SYMBOL once in the main process
-    # This creates an iterable of (symbol, DataFrame_for_that_symbol) tuples
     grouped_df = df.groupby('SYMBOL')
     stock_data_iterator = ((symbol, group) for symbol, group in grouped_df)
     total_stocks = len(grouped_df.groups)
 
     # Create a partial function to pass fixed arguments to the worker
     process_func = partial(process_stock, target_col=target_col, split_datetime=split_datetime)
-    
+    results_list = []
+
     with ProcessPool() as pool:
-        future = pool.map(process_func, stock_data_iterator, timeout=20) # Set a timeout for each stock processing
-
+        future = pool.map(process_func, stock_data_iterator, timeout=120)
         results_iterator = future.result()
-        results_list = []
 
-        for _ in tqdm(range(total_stocks), desc="Processing Stocks", total=total_stocks):
-            try:
-                result = next(results_iterator)
-                if result is not None:
-                    results_list.append(result)
-            except StopIteration:
-                break
-            except TimeoutError as error:
-                # print("A stock processing task timed out. Skipping this stock.")
-                pass
-            except Exception as e:
-                print(f"An error occurred while processing a stock: {e}")
-                pass
-        
-        # results_list = list(tqdm(pool.imap(process_func, stock_data_iterator), total=total_stocks))
-    
+        with tqdm(total=total_stocks, desc="Processing Stocks") as pbar:
+            while True:
+                try:
+                    result = next(results_iterator)
+                    if result is not None:
+                        results_list.append(result)
+                except StopIteration:
+                    break
+                except TimeoutError:
+                    # print("A stock processing task timed out and was skipped.")
+                    pass
+                except Exception as e:
+                    # print(f"A task failed with an unexpected error: {e}")
+                    pass
+                finally:
+                    pbar.update(1)
+            
     print(f"\nCompleted processing for {len(results_list)} stocks (skipped or failed stocks are excluded).")
 
     valid_results = [res for res in results_list if res is not None]
     print(f"Completed TS forecasting for {len(valid_results)} stocks.")
 
     # Separate and Save Parameters
-    arima_params_list = [{'symbol': r['symbol'], **r['arima_params']} for r in valid_results if r['arima_params']]
+    arima_params_list = [{'symbol': r['symbol'], **r['arima_params']} for r in valid_results if r.get('arima_params')]
     garch_results_list = [{'symbol': r['symbol'], **r['garch_results']} for r in valid_results if r.get('garch_results')]
     
     params_dir.mkdir(parents=True, exist_ok=True)
@@ -179,15 +188,28 @@ def run_full_analysis(df: pd.DataFrame, target_col: str, split_datetime: str, pa
     # Separate and Save Predictions
     preds_dir.mkdir(parents=True, exist_ok=True)
     for model_name in ['arima', 'garch']:
-        preds_list = [r[f'{model_name}_predictions'] for r in valid_results if r.get(f'{model_name}_predictions') is not None]
-        if preds_list:
-            preds_df = pd.concat(preds_list).to_frame(name='predicted_return').reset_index()
-            symbol_map = df.reset_index()[['DATETIME', 'SYMBOL']].drop_duplicates().set_index('DATETIME')
-            preds_df = preds_df.join(symbol_map, on='DATETIME')
-            preds_df.to_parquet(preds_dir / f"{model_name}_predictions.parquet")
-            # print(f"{model_name.upper()} predictions saved to {preds_dir}")
+        preds_dict = {
+            r['symbol']: r[f'{model_name}_predictions']
+            for r in valid_results if r.get(f'{model_name}_predictions') is not None
+        }
 
+        if preds_dict:
+            # Create a wide DataFrame (symbols as columns)
+            concatenated_df = pd.concat(preds_dict, axis=1)
+            
+            # Pivot from wide to long format. The `stack` method correctly handles this,
+            # and we use dropna=False to be safe.
+            keys = { 'arima': 'predicted_return', 'garch': 'predicted_volatility' }
+            final_df = concatenated_df.stack(dropna=False).to_frame(keys[model_name]).reset_index()
+            final_df.rename(columns={'level_0': 'DATETIME', 'level_1': 'SYMBOL'}, inplace=True)
+            
+            # Drop any remaining NaNs that might result from non-overlapping test sets
+            final_df.dropna(inplace=True)
 
+            final_df.to_parquet(preds_dir / f"{model_name}_predictions.parquet", index=False)
+            print(f"Successfully saved {len(final_df)} predictions for '{model_name}'.")
+
+    
 def generate_outputs(params_dir: Path, figures_dir: Path, tables_dir: Path):
     """
     Loads pre-computed analysis results and generates summary tables and figures.
@@ -263,7 +285,7 @@ def generate_outputs(params_dir: Path, figures_dir: Path, tables_dir: Path):
 
 
 # --- Main Pipeline Function (for import) ---
-def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Path, split_datetime: str):
+def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir: Path, figures_dir: Path, split_datetime: str):
     """
     Runs the full time series analysis pipeline including ARIMA and GARCH models.
     """
@@ -297,6 +319,13 @@ def run_timeseries_models_pipeline(data_path: Path, params_dir: Path, preds_dir:
     returns_df = returns_df[returns_df['SYMBOL'].isin(stocks_with_vol)]
     print(f"Stocks remaining after filtering for non-zero volatility: {returns_df['SYMBOL'].nunique()}")
 
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    symbols_to_plot = returns_df['SYMBOL'].unique()[:2]
+    for symbol in symbols_to_plot:
+        stock_series = returns_df[returns_df['SYMBOL'] == symbol][TARGET_COL].dropna()
+        save_path = figures_dir / f"autocorrelation_{symbol}.png"
+        plot_autocorrelation(stock_series, symbol, lags=10, save_path=save_path)
+
     run_full_analysis(returns_df, TARGET_COL, split_datetime, params_dir, preds_dir)
     
     print("--- Time Series Models Training Pipeline Complete ---")
@@ -327,7 +356,7 @@ if __name__ == '__main__':
 
     if not returns_df.empty:
         # 2. Run the full analysis (forecasting and parameter saving)
-        run_full_analysis(returns_df, TARGET_COL, SPLIT_DATETIME, PARAMS_DIR, PREDS_DIR)
+        run_timeseries_models_pipeline(DATA_PATH, PARAMS_DIR, PREDS_DIR, FIGURES_DIR, SPLIT_DATETIME)
     
         # 3. Generate summary reports from the saved parameters
         generate_outputs(PARAMS_DIR, TABLES_DIR, FIGURES_DIR)
