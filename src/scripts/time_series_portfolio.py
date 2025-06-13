@@ -8,7 +8,7 @@ for name in names:
 #DATA UPLOADING
     data=pd.read_parquet(f'/Users/emanueledurante/Desktop/predictions/{name}_predictions.parquet')
     pred_df = data.pivot_table(index="DATETIME", columns="SYMBOL", values="predicted_return",aggfunc="mean")
-    actual_dataset=pd.read_parquet('/Users/emanueledurante/Desktop/LGMB/lausanne/epfl/MLfinance/High-Frequency-Trading-with-Deep-Learning/data/high_10m.parquet')
+    actual_dataset=pd.read_parquet(f'/Users/emanueledurante/Desktop/predictions/{names}.csv')
     #INITIALIZING FUNCTIONS
     returns_strategy=dict()
     pred_df,actual_df=cleandata(pred_df,actual_dataset)
