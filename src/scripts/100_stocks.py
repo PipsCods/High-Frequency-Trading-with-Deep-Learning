@@ -3,18 +3,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 from helper_portfolio_management import first_weights_given_returns,strategy,model_evaluation
 returns_strategy=dict()
-for j in ['100_cross-sectional_None_0.01_prediction',
-          '100_cross-sectional_None_0.5_prediction',
-          '100_cross-sectional_None_1_prediction',
-          '100_cross-sectional_time_0.01_prediction',
-          '100_cross-sectional_time_0.5_prediction',
-          '100_cross-sectional_time_1_prediction',
-          '100_time_cross-sectional_0.01_prediction',
-          '100_time_cross-sectional_0.5_prediction',
-          '100_time_cross-sectional_1_prediction',
-          '100_time_None_0.01_prediction',
-          '100_time_None_0.5_prediction',
-          '100_time_None_1_prediction']:
+for j in [#'100_cross-sectional_None_0.01_prediction',
+          #'100_cross-sectional_None_0.5_prediction',
+          #'100_cross-sectional_None_1_prediction',
+          #'100_cross-sectional_time_0.01_prediction',
+          #'100_cross-sectional_time_0.5_prediction',
+          #'100_cross-sectional_time_1_prediction',
+          #'100_time_cross-sectional_0.01_prediction',
+          #'100_time_cross-sectional_0.5_prediction',
+          #'100_time_cross-sectional_1_prediction',
+          '100_time_None_0.01_prediction'#,
+          #'100_time_None_0.5_prediction',
+          #'100_time_None_1_prediction',
+          ]:
     data=pd.read_csv(f'/Users/emanueledurante/Desktop/LGMB/lausanne/epfl/MLfinance/High-Frequency-Trading-with-Deep-Learning/data/predictions_transformers/{j} 2.csv')
     pred_df = data.pivot(index="index", columns="stock", values="pred")
     actual_df = data.pivot(index="index", columns="stock", values="actual")
