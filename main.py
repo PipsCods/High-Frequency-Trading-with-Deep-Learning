@@ -6,6 +6,7 @@ from pathlib import Path
 from src.data_analysis import run_data_analysis_pipeline
 from src.linear_benchmarks import run_linear_models_pipeline
 from src.time_series_analysis import run_timeseries_models_pipeline, generate_summary_reports
+from src.transformer_train_experiments import run_experiments
 # from src.training import train_model
 # from src.evaluation import evaluate_model
 # from src.strategy import run_strategy
@@ -30,7 +31,7 @@ def main():
     parser.add_argument("--train-benchmarks", action="store_true", help="Run all benchmark model training pipelines.")
     parser.add_argument("--evaluate-benchmarks", action="store_true", help="Generate reports for benchmark models.")
 
-    parser.add_argument("--train", action="store_true", help="Run the model training pipeline.")
+    parser.add_argument("--train_transformer", action="store_true", help="Run the model training pipeline.")
     parser.add_argument("--evaluate", action="store_true", help="Evaluate the trained model's performance.")
     parser.add_argument("--strategy", action="store_true", help="Run a trading strategy using the model.")
 
@@ -57,9 +58,10 @@ def main():
         print("\n--- STAGE: BENCHMARK MODEL EVALUATION ---")
         generate_summary_reports(PARAMS_DIR, FIGURES_DIR / "time_series", TABLES_DIR / "time_series")
 
-    if args.train:
+    if args.train_transformer:
         print("\n--- STAGE: MODEL TRAINING ---")
-        pass
+        run_experiments(data_path=PROCESSED_DATA_PATH, result_path = RESULTS_DIR / "transformer_experiments")
+        
     #     train_model(processed_path=args.processed_data_path, model_path=args.model_path, epochs=args.epochs)
 
     if args.evaluate:
@@ -73,7 +75,7 @@ def main():
     #     run_strategy(processed_path=args.processed_data_path, model_path=args.model_path)
 
     # If no flags were provided, show help message.
-    if not any([args.data_analysis, args.train_benchmarks, args.evaluate_benchmarks, args.train, args.evaluate, args.strategy]):
+    if not any([args.data_analysis, args.train_benchmarks, args.evaluate_benchmarks, args.train_transformer, args.evaluate, args.strategy]):
         print("No stage selected. Please specify a stage to run (e.g., --train). Use --help for more info.")
         parser.print_help()
 
