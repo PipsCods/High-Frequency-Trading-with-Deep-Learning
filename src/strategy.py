@@ -4,188 +4,228 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cvxpy as cp
 from pathlib import Path
-from tqdm import tqdm
 
-def get_optimal_weights(returns: np.ndarray, prev_weights: np.ndarray, tc: float) -> tuple[np.ndarray, float]:
+# =================================================================
+# Helper Functions
+# =================================================================
+def first_weights_given_returns(
+    returns: np.ndarray,
+    prev_weights: np.ndarray,
+    tc: float = 0.001
+) -> tuple[np.ndarray, float]:
     """
-    Computes the optimal portfolio weights for a single period.
-
-    Args:
-        returns: Forecasted returns for each asset.
-        prev_weights: The weight allocation from the previous period.
-        tc: Transaction cost coefficient.
-
-    Returns:
-        A tuple containing the new optimized weights and the realized transaction cost.
+    Compute the weight vector w that maximizes:
+        returns^T w  -  tc * ||w - prev_weights||_1
+    subject to sum(w) == 1 and w >= 0.
     """
+    if returns.ndim != 1 or prev_weights.ndim != 1:
+        raise ValueError("`returns` and `prev_weights` must be one‐dimensional arrays.")
+    if returns.shape[0] != prev_weights.shape[0]:
+        raise ValueError("`returns` and `prev_weights` must have the same length.")
     n = returns.shape[0]
+    
     weights = cp.Variable(n)
-    
-    # Objective: Maximize returns minus transaction costs
     l1_diff = cp.norm1(weights - prev_weights)
-    objective = cp.Maximize(returns @ weights - (tc * l1_diff))
+    total_cost_expr = tc * l1_diff
     
-    # Constraints: Fully invested, no short-selling (long-only)
-    constraints = [cp.sum(weights) == 1, weights >= 0]
+    objective = cp.Maximize(returns @ weights - total_cost_expr)
     
+    # Original constraints from the provided file
+    constraints = [
+        cp.sum(weights) == 1,
+        weights >= -0.5
+    ]
+    
+    # Original solver from the provided file
     prob = cp.Problem(objective, constraints)
-    prob.solve(solver=cp.ECOS) # Using ECOS solver, which is good for this type of problem
-    
-    # If solver fails, hold the previous position
-    if prob.status != cp.OPTIMAL:
-        # print(f"Warning: Solver failed. Status: {prob.status}. Holding previous weights.")
-        return prev_weights, 0.0
+    prob.solve(solver=cp.SCS)
+
+    if weights.value is None:
+        raise ValueError(f"Optimization failed. Problem status: {prob.status}. also {weights.value}")
 
     w_opt = weights.value.flatten()
-    w_opt = np.maximum(w_opt, 0.0) # Clip tiny negatives
-    w_opt /= w_opt.sum() # Re-normalize to ensure sum-to-1
+    w_opt = np.maximum(w_opt, 0.0)
+    w_opt /= w_opt.sum()
     
-    cost = tc * np.linalg.norm(w_opt - prev_weights, ord=1)
-    return w_opt, cost
-
-def run_backtest(predictions_df: pd.DataFrame, tc: float) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Executes the trading strategy over a history of forecasted returns.
-
-    Args:
-        predictions_df: DataFrame of forecasted returns (rows=time, cols=assets).
-        tc: Transaction cost coefficient.
-
-    Returns:
-        A tuple of (weights_history, cost_history).
-    """
-    T, N = predictions_df.shape
-    w_prev = np.full(N, 1/N) # Start with an equally weighted portfolio
+    total_cost = tc * np.linalg.norm(w_opt - prev_weights, ord=1)
     
+    return w_opt, total_cost
+
+def strategy(
+    returns: pd.DataFrame,
+    prev_weights: np.ndarray = None,
+    tc: float = 0.001
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Execute the trading strategy based on forecasted returns and previous weights.
+    """
+    T, N = returns.shape
+    if prev_weights is None or len(prev_weights) == 0:
+        w_prev = np.zeros(N) # Original logic starts with zero-weight portfolio
+    else:
+        w_prev = prev_weights.copy()
+
     weights_history = np.zeros((T, N))
-    cost_history = np.zeros(T)
+    total_cost = []
 
     for t in range(T):
-        returns_t = predictions_df.iloc[t].to_numpy(na_value=0.0)
-        w_new, cost_t = get_optimal_weights(returns_t, w_prev, tc)
+        returns_array = returns.iloc[t].to_numpy()
+        returns_array = np.nan_to_num(returns_array, nan=0.0)
+
+        w_new, cost_t = first_weights_given_returns(returns_array, w_prev, tc)
         
         weights_history[t, :] = w_new
-        cost_history[t] = cost_t
+        total_cost.append(cost_t)
         w_prev = w_new
-        
-    return weights_history, cost_history
 
-# --- Data Handling and Alignment ---
-def load_and_align_data(pred_path: Path, actual_returns_df: pd.DataFrame):
+    return weights_history, np.array(total_cost)
+
+def model_evaluation(weights:np.ndarray, real_returns:np.ndarray, history_of_total_cost:np.ndarray):
+    """Calculates the final portfolio returns after costs."""
+    return (weights*real_returns).sum(axis=1) - (history_of_total_cost)
+
+def cleandata(pred_df, actual_dataset):
     """
-    Loads predictions and aligns them with actual returns on a common datetime index.
+    Original cleandata function to align predictions and actuals.
+    Note: The original file had a RETURN column which is not in the processed data.
+    Using 'RETURN_NoOVERNIGHT' as the logical equivalent.
     """
-    # Load predictions based on file type
-    if pred_path.suffix == '.csv': # Transformer predictions
-        preds = pd.read_csv(pred_path)
-        pred_df = preds.pivot(index="index", columns="stock", values="pred")
-        pred_df.index = pd.to_datetime(pred_df.index)
-        pred_df.index.name = "DATETIME"
-    else: # Benchmark predictions
-        preds = pd.read_parquet(pred_path)
-        pred_df = preds.pivot_table(index="DATETIME", columns="SYMBOL", values="predicted_return", aggfunc="mean")
-
-    # Align with actual returns
-    actuals_ts = actual_returns_df.pivot_table(index="DATETIME", columns="SYMBOL", values="RETURN_NoOVERNIGHT")
+    actual_dataset = actual_dataset.drop(columns=['ALL_EX', 'MID_OPEN', 'SUM_DELTA'], errors='ignore')
+    actual_dataset['DATETIME'] = pd.to_datetime(actual_dataset['DATE'].astype(str) + ' ' + actual_dataset['TIME'].astype(str))
+    actual_dataset = actual_dataset.drop(columns=['TIME', 'DATE'])
     
-    # Find common stocks and time range
-    common_stocks = pred_df.columns.intersection(actuals_ts.columns)
-    if len(common_stocks) == 0:
-        return None, None
-        
-    pred_df = pred_df[common_stocks]
-    actual_df = actuals_ts[common_stocks]
+    # Using 'RETURN_NoOVERNIGHT' as it's the primary return column in the data
+    actual_dataset = actual_dataset.pivot(index="DATETIME", columns="SYMBOL", values="RETURN_NoOVERNIGHT")
     
-    common_index = pred_df.index.intersection(actual_df.index)
+    predicted_col = pred_df.columns
+    actual_dataset = actual_dataset[predicted_col]
     
-    pred_df = pred_df.loc[common_index].fillna(0)
-    actual_df = actual_df.loc[common_index].fillna(0)
+    first_date = pred_df.index[0]
+    actual_df = actual_dataset.loc[first_date:, :]
     
-    if pred_df.empty or actual_df.empty:
-        return None, None
-
+    actual_df = actual_df.reset_index(drop=True)
+    pred_df = pred_df.reset_index(drop=True)
+    
+    actual_df.fillna(0, inplace=True)
+    pred_df.fillna(0, inplace=True)
+    
+    actual_df = actual_df.loc[actual_df.index.isin(pred_df.index)]
+    actual_df = actual_df.loc[pred_df.index]
+    
     return pred_df, actual_df
 
-# --- Plotting and Evaluation ---
-def plot_cumulative_returns(tc_results: dict, market_returns: pd.Series, model_name: str, figures_dir: Path):
+# =================================================================
+# Main Pipeline Function
+# =================================================================
+def run_strategy_pipeline(preds_dir: Path, transformer_preds_dir: Path, processed_data_path: Path, figures_dir: Path):
     """
-    Plots and saves the cumulative returns of the strategy vs. the market.
+    Main function to run the backtesting pipeline, preserving original logic.
     """
-    plt.style.use('seaborn-v0_8-grid')
-    fig, ax = plt.subplots(figsize=(14, 8))
-    
-    # Plot strategy returns for different transaction costs
-    for tc, returns in tc_results.items():
-        label = f'Strategy (TC={tc*10000:.0f} bps)' if tc > 0 else 'Strategy (No Fees)'
-        ax.plot(np.cumsum(returns), label=label, linewidth=2)
-
-    # Plot market benchmark (equal weight)
-    ax.plot(np.cumsum(market_returns), label='Market Benchmark (Equal Weight)', linestyle='--', color='black', linewidth=2)
-
-    ax.set_title(f'Cumulative Returns for Model: {model_name}', fontsize=16)
-    ax.set_xlabel('Time Steps (10-minute intervals)', fontsize=12)
-    ax.set_ylabel('Cumulative Log Return', fontsize=12)
-    ax.legend(fontsize=10)
-    ax.grid(True)
-    
-    plt.tight_layout()
-    output_path = figures_dir / f"{model_name}_strategy_performance.png"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(output_path)
-    plt.close(fig)
-    print(f"Saved performance plot to {output_path}")
-
-# --- Main Pipeline Function ---
-def run_strategy_pipeline(preds_dir: Path, processed_data_path: Path, figures_dir: Path):
-    """
-    Main function to run the backtesting pipeline for all available models.
-    """
-    print("\n--- Running Trading Strategy & Backtesting Pipeline ---")
-    
-    # --- START OF CHANGE ---
-
-    # Find all benchmark prediction files, EXCLUDING garch predictions
-    all_benchmark_files = preds_dir.glob("*_predictions.parquet")
-    benchmark_files = [p for p in all_benchmark_files if "garch" not in p.stem.lower()]
-
-    # Find all transformer prediction files
-    transformer_files = list((preds_dir.parent / "transformer_experiments").glob("*_prediction.csv"))
-    
-    all_pred_files = benchmark_files + transformer_files
-
-    # --- END OF CHANGE ---
-
-    if not all_pred_files:
-        print("Error: No applicable prediction files found. Please run model training stages first.")
-        return
-
-    # Load actual returns data once
+    # This logic is taken directly from the original script to ensure identical results
+    # It uses a specific transformer experiment to define the universe of stocks for all benchmarks.
     try:
-        raw_df = pd.read_parquet(processed_data_path)
-        raw_df['DATETIME'] = pd.to_datetime(raw_df['DATE'].astype(str) + ' ' + raw_df['TIME'].astype(str))
-    except Exception as e:
-        print(f"Error loading processed data from {processed_data_path}: {e}")
-        return
+        specific_transformer_file = transformer_preds_dir / '100_time_cross-sectional_1_prediction.csv'
+        data_transformer = pd.read_csv(specific_transformer_file)
+        data_transformer = data_transformer.pivot(index="index", columns="stock", values="actual")
+        stocks = data_transformer.columns
+    except FileNotFoundError:
+        print(f"Warning: Specific transformer file not found at {specific_transformer_file}. Cannot run benchmark backtests.")
+        stocks = None
 
-    transaction_costs = [0, 0.0001, 0.0005, 0.001]
-    
-    for pred_path in tqdm(all_pred_files, desc="Backtesting Models"):
-        model_name = pred_path.stem.replace('_predictions', '').replace('_prediction', '')
-        
-        pred_df, actual_df = load_and_align_data(pred_path, raw_df)
+    # --- Part 1: Backtest Benchmark Models ---
+    if stocks is not None:
+        print("\n--- Backtesting Benchmark Models ---")
+        actual_dataset = pd.read_parquet(processed_data_path)
+        names = ['ridge', 'linear', 'lasso', 'arima']
+        for name in names:
+            print(f"Processing benchmark: {name}")
+            try:
+                data = pd.read_parquet(preds_dir / f'{name}_predictions.parquet')
+            except FileNotFoundError:
+                print(f"  Prediction file for {name} not found. Skipping.")
+                continue
 
-        if pred_df is None or actual_df is None:
-            print(f"Skipping {model_name}: No common data after alignment.")
+            pred_df = data.pivot_table(index="DATETIME", columns="SYMBOL", values="predicted_return", aggfunc="mean")
+            
+            # Using original cleandata function and stock filtering logic
+            pred_df, actual_df = cleandata(pred_df.copy(), actual_dataset.copy())
+            
+            missing = [t for t in stocks if t not in actual_df.columns]
+            if missing:
+                print(f"  Dropping {len(missing)} missing tickers.")
+            
+            valid_stocks = [t for t in stocks if t in actual_df.columns]
+            actual_df = actual_df[valid_stocks]
+            pred_df = pred_df[valid_stocks]
+
+            returns_strategy = {}
+            for i, transaction_cost in enumerate([0, 0.0001, 0.0005, 0.001]):
+                weights_history, total_cost = strategy(pred_df, tc=transaction_cost)
+                returns_strategy[i] = model_evaluation(weights_history, np.nan_to_num(actual_df.values, nan=0.0), total_cost)
+
+            plt.figure(figsize=(8, 4))
+            plt.plot(returns_strategy[0].cumsum(), label='no fees')
+            plt.plot(returns_strategy[1].cumsum(), label='1 basis point')
+            plt.plot(returns_strategy[2].cumsum(), label='5 basis point')
+            plt.plot(returns_strategy[3].cumsum(), label='10 basis point')
+            plt.plot(actual_df.mean(axis=1).cumsum(), label='market', linestyle='--')
+            plt.xlabel('Time step')
+            plt.legend()
+            plt.ylabel('Cumulative Return')
+            plt.title(f'{name}')
+            plt.grid(True)
+            plt.tight_layout()
+            
+            output_path = figures_dir / f"{name}_strategy.png"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(output_path)
+            plt.close() # Close plot to free memory
+            print(f"  Saved plot to {output_path}")
+
+    # --- Part 2: Backtest Transformer Models ---
+    print("\n--- Backtesting Transformer Models ---")
+    transformer_model_names = [
+        '100_cross-sectional_None_0.01_prediction', '100_cross-sectional_None_0.5_prediction',
+        '100_cross-sectional_None_1_prediction', '100_cross-sectional_time_0.01_prediction',
+        '100_cross-sectional_time_0.5_prediction', '100_cross-sectional_time_1_prediction',
+        '100_time_cross-sectional_0.01_prediction', '100_time_cross-sectional_0.5_prediction',
+        '100_time_cross-sectional_1_prediction', '100_time_None_0.01_prediction',
+        '100_time_None_0.5_prediction', '100_time_None_1_prediction'
+    ]
+
+    for model_name in transformer_model_names:
+        print(f"Processing transformer: {model_name}")
+        try:
+            data = pd.read_csv(transformer_preds_dir / f'{model_name}.csv')
+        except FileNotFoundError:
+            print(f"  Prediction file for {model_name} not found. Skipping.")
             continue
         
-        market_returns = actual_df.mean(axis=1)
-        tc_results = {}
-
-        for tc in transaction_costs:
-            weights, costs = run_backtest(pred_df, tc=tc)
-            strategy_returns = (weights * actual_df.to_numpy()).sum(axis=1) - costs
-            tc_results[tc] = strategy_returns
+        pred_df = data.pivot(index="index", columns="stock", values="pred")
+        actual_df = data.pivot(index="index", columns="stock", values="actual")
         
-        plot_cumulative_returns(tc_results, market_returns, model_name, figures_dir)
+        returns_strategy = {}
+        for i, transaction_cost in enumerate([0, 0.0001, 0.0005, 0.001]):
+            weights_history, total_cost = strategy(pred_df, tc=transaction_cost)
+            returns_strategy[i] = model_evaluation(weights_history, actual_df.values, total_cost)
 
-    print("\n--- Trading Strategy & Backtesting Pipeline Complete ---")
+        plt.figure(figsize=(8, 4))
+        plt.plot(returns_strategy[0].cumsum(), label='no fees')
+        plt.plot(returns_strategy[1].cumsum(), label='1 basis point')
+        plt.plot(returns_strategy[2].cumsum(), label='5 basis point')
+        plt.plot(returns_strategy[3].cumsum(), label='10 basis point')
+        plt.plot(actual_df.mean(axis=1).cumsum(), label='market', linestyle='--')
+        plt.xlabel('Time step')
+        plt.legend()
+        plt.ylabel('Cumulative Return')
+        plt.title(f'{model_name}')
+        plt.grid(True)
+        plt.tight_layout()
+
+        output_path = figures_dir / f"{model_name}_strategy.png"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(output_path)
+        plt.close()
+        print(f"  Saved plot to {output_path}")
+
+    print("\n--- Strategy Backtesting Pipeline Complete ---")

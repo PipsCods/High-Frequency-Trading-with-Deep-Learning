@@ -25,6 +25,7 @@ def main():
     TABLES_DIR = RESULTS_DIR / "tables"
     PARAMS_DIR = RESULTS_DIR / "parameters"
     PREDS_DIR = RESULTS_DIR / "predictions"
+    TRANSFORMER_RESULTS_DIR = RESULTS_DIR / "transformer_experiments"
 
     # --- Define pipeline stage flags ---
     parser.add_argument("--load-data", action="store_true", help="Load and preprocess the raw data.")
@@ -74,12 +75,12 @@ def main():
 
     if args.train_transformer:
         print("\n--- STAGE: TRANSFORMER EXPERIMENTS ---")
-        run_experiments(PROCESSED_DATA_PATH, RESULTS_DIR / "transformer_experiments")
+        run_experiments(PROCESSED_DATA_PATH, TRANSFORMER_RESULTS_DIR)
 
     if args.strategy:
-        print("\n--- STAGE: TRADING STRATEGY BACKTESTING ---")
-        run_strategy_pipeline(preds_dir=PREDS_DIR, processed_data_path=PROCESSED_DATA_PATH, figures_dir=FIGURES_DIR / "strategy")
-    
+        print("\n--- STAGE: TRADING STRATEGY ---")
+        run_strategy_pipeline(PREDS_DIR, TRANSFORMER_RESULTS_DIR, PROCESSED_DATA_PATH, FIGURES_DIR / "strategy")
+        
     print("\nPipeline execution complete for selected stages.")
 
 
