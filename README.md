@@ -61,13 +61,25 @@ cd high_frequency_project
 ```
 
 ### 2. Create and Activate a Virtual Environment
-Using venv:
+You can set up the project environment using either Conda (recommended) or venv:
+
+1. Create the environment from the YAML file:
+This single command creates a new environment named `ml_finance` and installs all the required packages from the specified channels.
+```bash
+conda env create -f environment.yml
+```
+2. Activate the environment:
+```bash
+conda activate ml_finance
+```
+
+Or alternatively:
 ```bash
 python -m venv venv
 source venv/bin/activate   # On Windows: `venv\Scripts\activate`
 ```
 
-Using `conda` is recommended:
+Also, using `conda` is recommended:
 ```bash
 conda create -n ml_finance python=3.11
 conda activate ml_finance
@@ -77,6 +89,7 @@ conda activate ml_finance
 ```bash
 pip install -r requirements.txt
 ```
+
 ### 4. Process the Data
 * Insert the raw data file into the "data/raw/high_10m" directory. all files inside that director should be in the same format "*.csv.gz" in order to be processed correctly.
 ```
