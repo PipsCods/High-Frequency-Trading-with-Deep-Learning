@@ -7,6 +7,7 @@ from src.data_analysis import run_data_analysis_pipeline
 from src.linear_benchmarks import run_linear_models_pipeline
 from src.time_series_analysis import run_timeseries_models_pipeline, generate_summary_reports
 from src.transformer_train_experiments import run_experiments
+from src.data_loading import main as process_raw_data
 # from src.training import train_model
 # from src.evaluation import evaluate_model
 # from src.strategy import run_strategy
@@ -17,6 +18,7 @@ def main():
     # --- Define consistent paths ---
     BASE_DIR = Path.cwd()
     PROCESSED_DATA_PATH = BASE_DIR / "data" / "processed" / "high_10m.parquet"
+    RAW_DATA_DIR = BASE_DIR / "data" / "raw" / "high_10m" / "*.csv.gz"
     RESULTS_DIR = BASE_DIR / "results"
     FIGURES_DIR = RESULTS_DIR / "figures"
     TABLES_DIR = RESULTS_DIR / "tables"
@@ -27,11 +29,12 @@ def main():
     DEFAULT_SPLIT_DATETIME = '2021-12-27 00:00:00'
 
     # --- Add flags for each pipeline stage ---
+    parser.add_argument("--load-data", action="store_true", help="Load and preprocess the raw data.")
     parser.add_argument("--data-analysis", action="store_true", help="Run the data exploration and analysis pipeline.")
     parser.add_argument("--train-benchmarks", action="store_true", help="Run all benchmark model training pipelines.")
     parser.add_argument("--evaluate-benchmarks", action="store_true", help="Generate reports for benchmark models.")
 
-    parser.add_argument("--train_transformer", action="store_true", help="Run the model training pipeline.")
+    parser.add_argument("--train-transformer", action="store_true", help="Run the model training pipeline.")
     parser.add_argument("--evaluate", action="store_true", help="Evaluate the trained model's performance.")
     parser.add_argument("--strategy", action="store_true", help="Run a trading strategy using the model.")
 
@@ -45,6 +48,9 @@ def main():
     args = parser.parse_args()
 
     # --- Execute the selected stage(s) ---
+    if args.load_data:
+        print("\n--- STAGE: DATA LOADING & PREPROCESSING ---")
+        process_raw_data(data_path=RAW_DATA_DIR)
     if args.data_analysis:
         print("\n--- STAGE: DATA ANALYSIS & EDA ---")
         run_data_analysis_pipeline(PROCESSED_DATA_PATH, FIGURES_DIR / "data_analysis", TABLES_DIR / "data_analysis")

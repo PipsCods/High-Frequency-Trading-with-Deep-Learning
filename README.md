@@ -46,7 +46,7 @@ High-Frequency-Trading-with-Deep-Learning/
 * [Teammate 1 Name]  
 <!-- * Emanuele Durante [emanuele.durante@epfl.ch](mailto:emanuele.durante@epfl.ch) -->
 * [Teammate 3 Name]  
-* [Teammate 4 Name]  
+<!-- * Filippo Passerini [filippo.passerini@epfl.ch](mailto:filippo.passerini@epfl.ch) -->
 <!-- * Letizia Seveso [letizia.seveso@epfl.ch](mailto:letizia.seveso@epfl.ch) -->
 <!-- * Alex Martinez [alex.martinezdefrancisco@epfl.ch](mailto:alex.martinezdefrancisco@epfl.ch) -->
 
@@ -76,8 +76,16 @@ conda activate ml_finance
 ```bash
 pip install -r requirements.txt
 ```
+### 4. Process the Data
+* Insert the raw data file into the "data/raw/high_10m" directory. all files inside that director should be in the same format "*.csv.gz" in order to be processed correctly.
+```
+python main.py --load-data
+```
 
-### 4. Run a pipeline stage
+This command will process the raw data files, generating the necessary processed data files in the "data/processed" directory. The processed data will be used for training and evaluation of the models.
+
+
+### 5. Run a pipeline stage
 The project is controlled via `main.py`, which allows you to run each stage of the pipeline independently using flags.
 
 Run Data Analysis & EDA:
@@ -98,15 +106,12 @@ Evaluate Benchmark Models:
 python main.py --evaluate-benchmarks
 ```
 
-Train Model:
+Train Transformer Model:
+* This trains 15 experiment on our transformer model, saving the best model weights and all evaluation metrics.
 ```bash
-python main.py --train --epochs 50
+python main.py --train-transformer
 ```
 
-Evaluate Model:
-```bash
-python main.py --evaluate
-```
 
 Run Trading Strategy:
 ```bash
