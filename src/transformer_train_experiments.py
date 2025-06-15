@@ -1,23 +1,29 @@
+# Package imports
 import os 
 import pandas as pd
 import numpy as np
 import random
 import torch
-import torch.nn as nn
-from pathlib import Path
 from torch.utils.data import DataLoader
 
-from .utils import denormalize_targets, filter_stocks_with_full_coverage ,compute_hf_features_multiwindow , \
+# Utils imports
+try:
+    from .utils import denormalize_targets, filter_stocks_with_full_coverage, compute_hf_features_multiwindow, \
     load_data , enrich_datetime, prepare_hf_data, encode_categoricals, split_and_normalise
-from models.model_init import ModelPipeline
-from models.dataset import ReadyToTransformerDataset
+    from .models.dataset import ReadyToTransformerDataset
+    from .models.model_init import ModelPipeline
+
+except ImportError:
+    from utils import denormalize_targets, filter_stocks_with_full_coverage, compute_hf_features_multiwindow, \
+    load_data , enrich_datetime, prepare_hf_data, encode_categoricals, split_and_normalise
+    from models.dataset import ReadyToTransformerDataset
+    from models.model_init import ModelPipeline
 
 
 # Split date configuration
 DEFAULT_SPLIT_DATETIME = '2021-12-27 00:00:00'
 
-
-#HYPERPARAMETERS
+# Hyperparameters
 MODEL_DIM = 128
 NUM_LAYERS = 3
 EXPANSION_FACT = 1

@@ -1,19 +1,20 @@
-# Packages and modules for the pipeline
+# Import libraries
 import argparse
 from pathlib import Path
 
 # Import custom modules for each stage of the pipeline
+from src.data_loading import main as process_raw_data
 from src.data_analysis import run_data_analysis_pipeline
 from src.linear_benchmarks import run_linear_models_pipeline
 from src.time_series_analysis import run_timeseries_models_pipeline, generate_summary_reports
 from src.transformer_train_experiments import run_experiments
-from src.data_loading import main as process_raw_data
-# from src.training import train_model
-# from src.evaluation import evaluate_model
-# from src.strategy import run_strategy
+from src.strategy import run_strategy_pipeline
 
 def main():
-    parser = argparse.ArgumentParser(description="A modular pipeline for high-frequency return prediction.")
+    """Main controller to run specified stages of the ML pipeline."""
+    parser = argparse.ArgumentParser(
+        description="A modular pipeline for high-frequency return prediction."
+    )
 
     # --- Define consistent paths ---
     BASE_DIR = Path.cwd()
@@ -25,32 +26,39 @@ def main():
     PARAMS_DIR = RESULTS_DIR / "parameters"
     PREDS_DIR = RESULTS_DIR / "predictions"
 
-    # Split date configuration
-    DEFAULT_SPLIT_DATETIME = '2021-12-27 00:00:00'
-
-    # --- Add flags for each pipeline stage ---
+    # --- Define pipeline stage flags ---
     parser.add_argument("--load-data", action="store_true", help="Load and preprocess the raw data.")
     parser.add_argument("--data-analysis", action="store_true", help="Run the data exploration and analysis pipeline.")
     parser.add_argument("--train-benchmarks", action="store_true", help="Run all benchmark model training pipelines.")
     parser.add_argument("--evaluate-benchmarks", action="store_true", help="Generate reports for benchmark models.")
+    parser.add_argument("--train-transformer", action="store_true", help="Run transformer model training and evaluation experiments.")
+    parser.add_argument("--strategy", action="store_true", help="Run trading strategy backtest on all model predictions.")
 
-    parser.add_argument("--train-transformer", action="store_true", help="Run the model training pipeline.")
-    parser.add_argument("--evaluate", action="store_true", help="Evaluate the trained model's performance.")
-    parser.add_argument("--strategy", action="store_true", help="Run a trading strategy using the model.")
-
-    # --- Add arguments for file paths and hyperparameters ---
-    # parser.add_argument("--model-path", type=str, default="results/models/best_model.pth", help="Path to save/load the model.")
-    # parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs.")
-
-    # Add split date as a configurable command-line argument
-    parser.add_argument("--split-date", type=str, default=DEFAULT_SPLIT_DATETIME, help=f"The train/test split date (YYYY-MM-DD HH:MM:SS). Default: {DEFAULT_SPLIT_DATETIME}")
+    # --- Define configurable parameters ---
+    DEFAULT_SPLIT_DATETIME = '2021-12-27 00:00:00'
+    parser.add_argument(
+        "--split-date",
+        type=str,
+        default=DEFAULT_SPLIT_DATETIME,
+        help=f"The train/test split date (YYYY-MM-DD HH:MM:SS). Default: {DEFAULT_SPLIT_DATETIME}"
+    )
     
     args = parser.parse_args()
+
+    # --- Create a list of selected stages ---
+    stages_to_run = [arg for arg, value in vars(args).items() if value is True]
+
+    # If no stage flags were provided, show a help message and exit.
+    if not stages_to_run:
+        print("No stage selected. Please specify at least one stage to run (e.g., --load-data).")
+        parser.print_help()
+        return
 
     # --- Execute the selected stage(s) ---
     if args.load_data:
         print("\n--- STAGE: DATA LOADING & PREPROCESSING ---")
         process_raw_data(data_path=RAW_DATA_DIR)
+
     if args.data_analysis:
         print("\n--- STAGE: DATA ANALYSIS & EDA ---")
         run_data_analysis_pipeline(PROCESSED_DATA_PATH, FIGURES_DIR / "data_analysis", TABLES_DIR / "data_analysis")
@@ -65,25 +73,14 @@ def main():
         generate_summary_reports(PARAMS_DIR, FIGURES_DIR / "time_series", TABLES_DIR / "time_series")
 
     if args.train_transformer:
-        print("\n--- STAGE: MODEL TRAINING ---")
-        run_experiments(data_path=PROCESSED_DATA_PATH, result_path = RESULTS_DIR / "transformer_experiments")
-        
-    #     train_model(processed_path=args.processed_data_path, model_path=args.model_path, epochs=args.epochs)
-
-    if args.evaluate:
-        print("\n--- STAGE: MODEL EVALUATION ---")
-        pass
-    #     evaluate_model(processed_path=args.processed_data_path, model_path=args.model_path)
+        print("\n--- STAGE: TRANSFORMER EXPERIMENTS ---")
+        run_experiments(data_path=PROCESSED_DATA_PATH, result_path=RESULTS_DIR / "transformer_experiments")
 
     if args.strategy:
-        print("\n--- STAGE: TRADING STRATEGY ---")
-        pass
-    #     run_strategy(processed_path=args.processed_data_path, model_path=args.model_path)
-
-    # If no flags were provided, show help message.
-    if not any([args.data_analysis, args.train_benchmarks, args.evaluate_benchmarks, args.train_transformer, args.evaluate, args.strategy]):
-        print("No stage selected. Please specify a stage to run (e.g., --train). Use --help for more info.")
-        parser.print_help()
+        print("\n--- STAGE: TRADING STRATEGY BACKTESTING ---")
+        run_strategy_pipeline(preds_dir=PREDS_DIR, processed_data_path=PROCESSED_DATA_PATH, figures_dir=FIGURES_DIR / "strategy")
+    
+    print("\nPipeline execution complete for selected stages.")
 
 
 if __name__ == "__main__":
