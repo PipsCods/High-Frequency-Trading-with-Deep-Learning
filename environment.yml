@@ -1,4 +1,4 @@
-name: fin407-project
+name: ml_finance
 channels:
   - defaults
   - conda-forge
@@ -195,4 +195,4 @@ dependencies:
       - torch==2.7.1
       - tzdata==2025.1
       - wrds==3.3.0
-prefix: /opt/homebrew/Caskroom/miniconda/base/envs/fin407-project
+prefix: /opt/homebrew/Caskroom/miniconda/base/envs/ml_finance
