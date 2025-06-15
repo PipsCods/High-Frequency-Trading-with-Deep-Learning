@@ -148,7 +148,8 @@ def run_single_experiment(
         data_path: str,
 )-> tuple: 
     df = load_data(data_path)
-    df["return"] = df["RETURN_NoOvernight"]
+    breakpoint()
+    df["return"] = df["RETURN_NoOVERNIGHT"]
     df.drop(columns=["RETURN_SiOVERNIGHT", "RETURN_NoOVERNIGHT"], inplace=True)
     df = enrich_datetime(df)
     df = filter_stocks_with_full_coverage(df, "datetime", "SYMBOL")
