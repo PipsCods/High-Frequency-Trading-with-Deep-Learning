@@ -1,5 +1,6 @@
 # Package imports
-import os 
+import os
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import random
@@ -245,7 +246,7 @@ def run_single_experiment(
     return metrics, history, combined
 
 
-def run_experiments(data_path: str, result_path:str):
+def run_experiments(data_path: str, result_dir: str):
 
     combos = [
         #TOT_STOCKS = 100, baseline = cross-sectional, wrapper = time/None
@@ -272,12 +273,10 @@ def run_experiments(data_path: str, result_path:str):
         # ],
     ]
 
-    metrics_path = os.path.join(result_path, "transformer_hft_metrics.csv")
-    # results_path = Path("../../data/results2/transformer_hft_metrics.csv")
-    # results_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics_path = os.path.join(result_dir, "transformer_hft_metrics.csv")
 
     # Resume logic unchanged
-    if metrics_path.exists():
+    if os.path.exists(metrics_path):
         results_df = pd.read_csv(metrics_path)
     else:
         results_df = pd.DataFrame()
@@ -323,15 +322,21 @@ def run_experiments(data_path: str, result_path:str):
 
         losses_df = pd.DataFrame(losses)
         # losses_df.to_csv(f"../../data/results2/{name_exp}_losses.csv")
-        losses_df.to_csv(os.path.join(result_path, f"{name_exp}_losses.csv"))
+        losses_df.to_csv(os.path.join(result_dir, f"{name_exp}_losses.csv"))
 
         #predictions.to_csv(f"../../data/results2/{name_exp}_prediction.csv")
-        predictions.to_csv(os.path.join(result_path, f"{name_exp}_prediction.csv"))
+        predictions.to_csv(os.path.join(result_dir, f"{name_exp}_prediction.csv"))
         print("saved")
 
-    print("\nAll requested experiments attempted. Results at:", result_path)
+    print("\nAll requested experiments attempted. Results at:", result_dir)
 
 if __name__ == "__main__":
-    run_experiments()
+
+    BASE_DIR = Path.cwd()
+    DATA_PATH = BASE_DIR / "data" / "processed" / "high_10m.parquet"
+    RESULTS_DIR = BASE_DIR / "results"
+
+    run_experiments(DATA_PATH, RESULTS_DIR)
+    
     # Uncomment the line below to run a single experiment with specific parameters
     # run_single_experiment(tot_stocks=100, baseline="cross-sectional", wrapper="time", alpha=1)

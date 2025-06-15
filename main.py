@@ -19,7 +19,7 @@ def main():
     # --- Define consistent paths ---
     BASE_DIR = Path.cwd()
     PROCESSED_DATA_PATH = BASE_DIR / "data" / "processed" / "high_10m.parquet"
-    RAW_DATA_DIR = BASE_DIR / "data" / "raw" / "high_10m" / "*.csv.gz"
+    RAW_DATA_PATH = BASE_DIR / "data" / "raw" / "high_10m" / "*.csv.gz"
     RESULTS_DIR = BASE_DIR / "results"
     FIGURES_DIR = RESULTS_DIR / "figures"
     TABLES_DIR = RESULTS_DIR / "tables"
@@ -57,7 +57,7 @@ def main():
     # --- Execute the selected stage(s) ---
     if args.load_data:
         print("\n--- STAGE: DATA LOADING & PREPROCESSING ---")
-        process_raw_data(data_path=RAW_DATA_DIR)
+        process_raw_data(raw_data_path=RAW_DATA_PATH, process_data_path=PROCESSED_DATA_PATH)
 
     if args.data_analysis:
         print("\n--- STAGE: DATA ANALYSIS & EDA ---")
@@ -74,7 +74,7 @@ def main():
 
     if args.train_transformer:
         print("\n--- STAGE: TRANSFORMER EXPERIMENTS ---")
-        run_experiments(data_path=PROCESSED_DATA_PATH, result_path=RESULTS_DIR / "transformer_experiments")
+        run_experiments(PROCESSED_DATA_PATH, RESULTS_DIR / "transformer_experiments")
 
     if args.strategy:
         print("\n--- STAGE: TRADING STRATEGY BACKTESTING ---")
