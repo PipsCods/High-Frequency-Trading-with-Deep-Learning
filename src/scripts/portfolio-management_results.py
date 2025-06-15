@@ -15,6 +15,16 @@ for name in names:
     #INITIALIZING FUNCTIONS
     returns_strategy=dict()
     pred_df,actual_df=cleandata(pred_df,actual_dataset)
+    
+    missing = [t for t in stocks if t not in actual_df.columns]
+    if missing:
+        print("dropping missing tickers:", missing)
+    stocks = [t for t in stocks if t in actual_df.columns]      
+
+
+    actual_df = actual_df[stocks]      
+    pred_df   = pred_df[stocks]
+
     actual_df=actual_df[stocks]
     pred_df=pred_df[stocks]
     #RUNNING ANALYSIS AND PLOTS
