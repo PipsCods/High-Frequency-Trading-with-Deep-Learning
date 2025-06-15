@@ -2,7 +2,6 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-
 class ReadyToTransformerDataset(Dataset):
     def __init__(self, df, basic_cat_features, cat_features, cont_features, seq_len, target_return):
         self.seq_len = seq_len

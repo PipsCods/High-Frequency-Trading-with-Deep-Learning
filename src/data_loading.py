@@ -1,14 +1,12 @@
+# Package imports
 import pandas as pd 
 import numpy as np
 import glob
 from tqdm import tqdm
-import os
-import sys
-from pathlib import Path
 
-def main(data_path: str =  "../data/raw/high_10m/*.csv.gz"):
-    # take the path of the parent directory of the current file
-    files = sorted(glob.glob(str(data_path)))
+def main(raw_data_path: str =  "../data/raw/high_10m/*.csv.gz", process_data_path: str = "../data/processed/high_10m.parquet"):
+    # Take the path of the parent directory of the current file
+    files = sorted(glob.glob(str(raw_data_path)))
     days = []
     for file in tqdm(files, desc= "Loading data"):
         day = pd.read_csv(file, compression= "gzip",  parse_dates= ["DATE"])
@@ -30,11 +28,7 @@ def main(data_path: str =  "../data/raw/high_10m/*.csv.gz"):
     df["LOG_RETURN_SiOVERNIGHT"] = np.log(1 + df["RETURN_SiOVERNIGHT"])
     df["LOG_RETURN_SiOVERNIGHT"] = df["LOG_RETURN_SiOVERNIGHT"].fillna(0)
 
-    SAVE_DIR = data_path / "data" / "processed" / "high_10m.parquet"
-    df.to_parquet(SAVE_DIR, index = False)
-
-
+    df.to_parquet(process_data_path, index = False)
 
 if __name__ == "__main__":
-
     main()

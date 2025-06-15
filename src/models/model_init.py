@@ -1,16 +1,13 @@
-from transformer.CrossSectionalAttention import CrossSectionalSelfAttention
-from transformer.CustomLoss import CustomLoss
-from transformer.TransformerEncoder import TransformerEncoder
-from transformer.PredictionHead import PredictionHead
-from transformer.TemporalSelfAttention import TemporalSelfAttention
-from transformers import get_linear_schedule_with_warmup
+from ..transformer.CrossSectionalAttention import CrossSectionalSelfAttention
+from ..transformer.CustomLoss import CustomLoss
+from ..transformer.TransformerEncoder import TransformerEncoder
+from ..transformer.PredictionHead import PredictionHead
+from ..transformer.TemporalSelfAttention import TemporalSelfAttention
+# from ..transformers import get_linear_schedule_with_warmup
 
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-
-#from src.scripts.transformer.Dummy import DummyPredictor
-
 
 class ModelPipeline(nn.Module):
     def __init__(self, config):

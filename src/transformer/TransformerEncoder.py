@@ -1,9 +1,8 @@
-import torch
 import torch.nn as nn
-from transformer.HFEmbedding import HFEmbedding
-from transformer.HFInputProjector import HFInputProjector
-from transformer.PositionalEmbedding import PositionalEmbedding
-from transformer.TransformerBlock import TransformerBlock
+from ..transformer.HFEmbedding import HFEmbedding
+from ..transformer.HFInputProjector import HFInputProjector
+from ..transformer.PositionalEmbedding import PositionalEmbedding
+from ..transformer.TransformerBlock import TransformerBlock
 
 class TransformerEncoder(nn.Module):
     def __init__(self,
