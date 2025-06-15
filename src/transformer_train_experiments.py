@@ -1,23 +1,30 @@
-import os 
+# Package imports
+import os
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import random
 import torch
-import torch.nn as nn
-from pathlib import Path
 from torch.utils.data import DataLoader
 
-from .utils import denormalize_targets, filter_stocks_with_full_coverage ,compute_hf_features_multiwindow , \
+# Utils imports
+try:
+    from .utils import denormalize_targets, filter_stocks_with_full_coverage, compute_hf_features_multiwindow, \
     load_data , enrich_datetime, prepare_hf_data, encode_categoricals, split_and_normalise
-from models.model_init import ModelPipeline
-from models.dataset import ReadyToTransformerDataset
+    from .models.dataset import ReadyToTransformerDataset
+    from .models.model_init import ModelPipeline
+
+except ImportError:
+    from utils import denormalize_targets, filter_stocks_with_full_coverage, compute_hf_features_multiwindow, \
+    load_data , enrich_datetime, prepare_hf_data, encode_categoricals, split_and_normalise
+    from models.dataset import ReadyToTransformerDataset
+    from models.model_init import ModelPipeline
 
 
 # Split date configuration
 DEFAULT_SPLIT_DATETIME = '2021-12-27 00:00:00'
 
-
-#HYPERPARAMETERS
+# Hyperparameters
 MODEL_DIM = 128
 NUM_LAYERS = 3
 EXPANSION_FACT = 1
@@ -239,7 +246,7 @@ def run_single_experiment(
     return metrics, history, combined
 
 
-def run_experiments(data_path: str, result_path:str):
+def run_experiments(data_path: str, result_dir: str):
 
     combos = [
         #TOT_STOCKS = 100, baseline = cross-sectional, wrapper = time/None
@@ -266,12 +273,10 @@ def run_experiments(data_path: str, result_path:str):
         # ],
     ]
 
-    metrics_path = os.path.join(result_path, "transformer_hft_metrics.csv")
-    # results_path = Path("../../data/results2/transformer_hft_metrics.csv")
-    # results_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics_path = os.path.join(result_dir, "transformer_hft_metrics.csv")
 
     # Resume logic unchanged
-    if metrics_path.exists():
+    if os.path.exists(metrics_path):
         results_df = pd.read_csv(metrics_path)
     else:
         results_df = pd.DataFrame()
@@ -317,15 +322,21 @@ def run_experiments(data_path: str, result_path:str):
 
         losses_df = pd.DataFrame(losses)
         # losses_df.to_csv(f"../../data/results2/{name_exp}_losses.csv")
-        losses_df.to_csv(os.path.join(result_path, f"{name_exp}_losses.csv"))
+        losses_df.to_csv(os.path.join(result_dir, f"{name_exp}_losses.csv"))
 
         #predictions.to_csv(f"../../data/results2/{name_exp}_prediction.csv")
-        predictions.to_csv(os.path.join(result_path, f"{name_exp}_prediction.csv"))
+        predictions.to_csv(os.path.join(result_dir, f"{name_exp}_prediction.csv"))
         print("saved")
 
-    print("\nAll requested experiments attempted. Results at:", result_path)
+    print("\nAll requested experiments attempted. Results at:", result_dir)
 
 if __name__ == "__main__":
-    run_experiments()
+
+    BASE_DIR = Path.cwd()
+    DATA_PATH = BASE_DIR / "data" / "processed" / "high_10m.parquet"
+    RESULTS_DIR = BASE_DIR / "results"
+
+    run_experiments(DATA_PATH, RESULTS_DIR)
+    
     # Uncomment the line below to run a single experiment with specific parameters
     # run_single_experiment(tot_stocks=100, baseline="cross-sectional", wrapper="time", alpha=1)
