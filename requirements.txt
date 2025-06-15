@@ -28,6 +28,7 @@ torch
 
 # --- Portfolio Optimization ---
 cvxpy               # For convex optimization problems in portfolio management
+ecos                 # ECOS solver for CVXPY
 
 # --- Parallel Processing ---
 multiprocessing     # For parallel processing of tasks

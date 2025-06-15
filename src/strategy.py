@@ -1,3 +1,4 @@
+# Packages imports
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -141,13 +142,21 @@ def run_strategy_pipeline(preds_dir: Path, processed_data_path: Path, figures_di
     """
     print("\n--- Running Trading Strategy & Backtesting Pipeline ---")
     
-    # Find all prediction files from benchmarks and transformer experiments
-    benchmark_files = list(preds_dir.glob("*_predictions.parquet"))
+    # --- START OF CHANGE ---
+
+    # Find all benchmark prediction files, EXCLUDING garch predictions
+    all_benchmark_files = preds_dir.glob("*_predictions.parquet")
+    benchmark_files = [p for p in all_benchmark_files if "garch" not in p.stem.lower()]
+
+    # Find all transformer prediction files
     transformer_files = list((preds_dir.parent / "transformer_experiments").glob("*_prediction.csv"))
+    
     all_pred_files = benchmark_files + transformer_files
 
+    # --- END OF CHANGE ---
+
     if not all_pred_files:
-        print("Error: No prediction files found. Please run model training stages first.")
+        print("Error: No applicable prediction files found. Please run model training stages first.")
         return
 
     # Load actual returns data once
