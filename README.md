@@ -43,12 +43,12 @@ High-Frequency-Trading-with-Deep-Learning/
 ```
 
 ## Authors
-* [Teammate 1 Name]  
-<!-- * Emanuele Durante [emanuele.durante@epfl.ch](mailto:emanuele.durante@epfl.ch) -->
-* [Teammate 3 Name]  
-<!-- * Filippo Passerini [filippo.passerini@epfl.ch](mailto:filippo.passerini@epfl.ch) -->
-<!-- * Letizia Seveso [letizia.seveso@epfl.ch](mailto:letizia.seveso@epfl.ch) -->
-<!-- * Alex Martinez [alex.martinezdefrancisco@epfl.ch](mailto:alex.martinezdefrancisco@epfl.ch) -->
+* Rui Azevedo [rui.azevedoleitao@epfl.ch](mailto:rui.azevedoleitao@epfl.ch)  
+* Nicolò Baldovin [nicolo.baldovin@epfl.ch](mailto:nicolo.baldovin@epfl.ch)
+* Emanuele Durante [emanuele.durante@epfl.ch](mailto:emanuele.durante@epfl.ch)
+* Alex Martínez [alex.martinezdefrancisco@epfl.ch](mailto:alex.martinezdefrancisco@epfl.ch)
+* Filippo Passerini [filippo.passerini@epfl.ch](mailto:filippo.passerini@epfl.ch)
+* Letizia Seveso [letizia.seveso@epfl.ch](mailto:letizia.seveso@epfl.ch)
 
 ## Quickstart
 Follow these steps to set up the project environment and run the pipeline:
